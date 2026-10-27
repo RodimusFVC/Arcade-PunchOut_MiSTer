@@ -286,3 +286,21 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BTN_*
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to BTN_*
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
 source files.qip
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/chip_pool_pkg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_pool_pkg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE "Arcade-PunchOut.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/punchout_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/punchout_layout.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/chp1/chp1_video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/chp1/chp1_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/chp1/chp1_speech_lpf.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/chp1/chs1_exp.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/rp2a03_apu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/rp2a03.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/vlm5030_lpc.sv
+set_global_assignment -name QIP_FILE rtl/cpu/T80/T80.qip
+set_global_assignment -name QIP_FILE rtl/cpu/T65/t65.qip
+set_global_assignment -name VERILOG_FILE rtl/mister_custom/pause.v
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mister_custom/controllers.sv
+set_global_assignment -name VHDL_FILE rtl/ram_rom/dpram_dc.vhd

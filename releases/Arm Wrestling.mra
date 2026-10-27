@@ -1,0 +1,109 @@
+<misterromdescription>
+    <name>Arm Wrestling</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Arm Wrestling</series>
+    <year>1985</year>
+    <manufacturer>Nintendo</manufacturer>
+    <category>Sports</category>
+
+    <setname>armwrest</setname>
+    <parent>armwrest</parent>
+    <mameversion>0289</mameversion>
+    <rbf>PunchOut</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>horizontal</rotation>
+    <flip>yes</flip>
+
+    <players>1</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>1</num_buttons>
+    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="00,10">
+        <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest"/>
+        <dip name="Service Mode" bits="7" ids="Off,On"/>
+        <dip name="Coinage 2" bits="2,5" ids="0000,0001,0010,0011,0100,0101,0110,0111,1000,1001,1010,1011,1100,1101,1110,1111"/>
+        <dip name="Rematches" bits="6" ids="3,7" values="1,0"/>
+        <dip name="Coinage 1" bits="8,11" ids="0000,0001,0010,0011,0100,0101,0110,0111,1000,1001,1010,1011,1100,1101,1110,1111"/>
+        <dip name="Coin Slots" bits="14" ids="1,2" values="1,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, packed store of rtl/punchout_board.sv (region table in index 1 bytes 64-111) -->
+    <rom index="0" md5="none" zip="armwrest.zip">
+        <part crc="b09764c1" name="chv1-c.8l"/>
+        <part crc="0e147ff7" name="chv1-c.8k"/>
+        <part crc="e7365289" name="chv1-c.8j"/>
+        <part crc="a2118eec" name="chv1-c.8h"/>
+        <part crc="664a07c4" name="chpv-c.8f"/>
+        <part crc="cb6ef376" name="chp1-c.4k"/>
+        <part crc="8b45f365" name="chpv-b.2e"/>
+        <part crc="b1a2850c" name="chpv-b.2d"/>
+        <part crc="19245b37" name="chpv-b.2m"/>
+        <part crc="46797941" name="chpv-b.2l"/>
+        <part crc="de189b00" name="chpv-b.2k"/>
+        <part crc="d86056d9" name="chv1-v.2r"/>
+        <part crc="5ad77059" name="chv1-v.2t"/>
+        <part crc="a0fd7338" name="chv1-v.2v"/>
+        <part crc="690e26fb" name="chv1-v.3r"/>
+        <part crc="ea5d7759" name="chv1-v.3t"/>
+        <part crc="ceb37c05" name="chv1-v.3v"/>
+        <part crc="e291cba0" name="chv1-v.4r"/>
+        <part crc="e01f3b59" name="chv1-v.4t"/>
+        <part crc="d834e142" name="chv1-v.6p"/>
+        <part crc="a2f531db" name="chv1-v.8p"/>
+        <part crc="31b52896" name="chv1-c.6p"/>
+        <part repeat="0x8000">00</part>
+        <part crc="df6fdeb3" name="chpv-b.7b"/>
+        <part crc="b1da5f42" name="chpv-b.7c"/>
+        <part crc="4ede813e" name="chpv-b.7d"/>
+        <part crc="9d51416e" name="chpv-b.4b"/>
+        <part crc="b8a25795" name="chpv-b.4c"/>
+        <part crc="474fc3b1" name="chpv-b.4d"/>
+        <part crc="c3f92ea2" name="chv1-b.3c"/>
+        <part crc="71dc0d48" name="chpv-v.2d"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map, ROM region table, byte 112 ROMREGION_INVERT slots (see Arcade-PunchOut.sv) -->
+    <rom index="1">
+        <part>
+            02 01 00 00 40 00 00 10 FF FF 80 80 00 01 80 80
+            00 00 00 00 00 2E 01 00 04 03 00 00 00 12 16 11
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 C0 00 C0 00 E0 00 20 00 E0 00 00 00
+            80 00 60 01 00 00 A0 00 00 02 00 00 00 02 00 04
+            00 00 40 00 40 04 00 00 40 00 00 00 00 00 0E 00
+            20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 01 02 03 04 05 FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF 06 FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            07 08 09 0A FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            0B 0C 0D 0E FF 0F FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            10 11 12 13 FF FF 14 15 16 17 18 19 FF FF 1A 1B
+            1C 1D 1E 1F FF FF FF FF FF FF FF FF FF FF FF FF
+            20 FF FF FF 21 FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            22 23 FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+        </part>
+    </rom>
+
+    <!-- Index 4: battery RAM (C000-C3FF) -->
+    <nvram index="4" size="1024"/>
+
+    <remark>Arm Wrestling (Nintendo)</remark>
+    <mratimestamp>20261024000000</mratimestamp>
+</misterromdescription>

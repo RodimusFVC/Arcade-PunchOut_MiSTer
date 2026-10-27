@@ -36,8 +36,9 @@ set_global_assignment -name VERILOG_FILE rtl/mister_custom/pause.v
 # set_global_assignment -name VERILOG_FILE rtl/mister_custom/hiscore.v   # NVRAM-2026-10-27: no hiscore module
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/mister_custom/controllers.sv
 
-# dpram_dc: VHDL wrapper (md5 411ee0a4) until the SV rewrite (rtl/ram_rom/dpram_dc.sv, copied, not listed) is approved
-set_global_assignment -name VHDL_FILE rtl/ram_rom/dpram_dc.vhd
+# dpram_dc: the fleet SV drop-in (md5 957ae97b = BallyMidwayMCR / Konami82 / ChampionBaseball ...); the VHDL wrapper was
+# deleted 2026-10-27 (user). Was: set_global_assignment -name VHDL_FILE rtl/ram_rom/dpram_dc.vhd
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_rom/dpram_dc.sv
 
 # MAME artwork (rtl/art/, master copy from Arcade-Centipede): NOT listed until it is wired (dual-screen open question)
 # set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/artwork.sv

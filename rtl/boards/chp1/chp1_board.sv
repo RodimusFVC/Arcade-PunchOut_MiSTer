@@ -127,7 +127,7 @@ logic [17:0] v_roma_off;
 
 chp1_video video
 (
-    .clk(clk), .flip(crt_flip), .h_adj(h_adj), .v_adj(v_adj),
+    .clk(clk), .flip(crt_flip), .aw(variant == 8'd2), .h_adj(h_adj), .v_adj(v_adj),   // ARMW-2026-10-27: .aw
     .reg_we(vreg_we), .reg_a(z80_o.a[3:0]), .reg_d(z80_o.dout),
     .vtop_a(vtop_ab), .vtop_q(vtop_qb), .vbot_a(vbot_ab), .vbot_q(vbot_qb),
     .spr1_a(spr1_ab), .spr1_q(spr1_qb), .spr2_a(spr2_ab), .spr2_q(spr2_qb),

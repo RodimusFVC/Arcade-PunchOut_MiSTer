@@ -22,10 +22,10 @@ This core targets MiSTer FPGA and aims for accurate gameplay behavior, video tim
 |----------|-------|
 | Punch-Out!! (CHP1) | Punch-Out!! (Rev B), Rev A, Rev A (harder), Japan, Italian bootleg |
 | Super Punch-Out!! (CHP1 + CHS1-01-EXP) | Super Punch-Out!! (Rev B), Rev A, Japan |
+| Arm Wrestling (CHV1) | Arm Wrestling |
 
 Clones and regional versions are in `releases/_alternatives/`.
 
-Arm Wrestling runs on a related board and is not supported yet.
 
 ---
 
