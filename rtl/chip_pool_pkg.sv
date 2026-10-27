@@ -1,15 +1,19 @@
 //============================================================================
 //
-//  chip_pool_pkg — bus types for a multi-board core's shared CPU / sound chip pool (canonical; same file in every core)
+//  chip_pool_pkg - bus types for a multi-board core's shared CPU / sound chip pool
 //  Copyright (C) 2026 Rodimus
 //
-//  Only one board runs at a time, so the CPUs and sound chips are instanced once in rtl/konami82_board.sv
-//  and the active board drives them through these buses (selected by variant). *_i = board to chip,
-//  *_o = chip to every board. Reset is the core reset.
+//  Master copy: RodimusCoresMaster_MiSTer/rtl/chip_pool_pkg.sv; sync.sh copies it into each core unchanged.
+//  Only one board runs at a time, so each CPU / sound chip is instanced once in the core's dispatcher and the
+//  active board drives it through these buses (selected by variant). <chip>_i_t = board to chip, <chip>_o_t =
+//  chip to every board. Reset is the core reset unless a type carries its own reset as the first field.
+//  Types are named after the instanced module's interface; a new type only when the pins differ.
+//  Add new types here, in the master, never in a core's copy.
 //
 //============================================================================
 
 package chip_pool_pkg;
+
 
 // Z80 (T80s, Mode 0, T2Write 1, IOWait 1; WAIT_n / BUSRQ_n inactive)
 typedef struct packed {
@@ -175,6 +179,55 @@ typedef struct packed {
     logic [10:0] rom_a;
 } mb88_o_t;
 
+// ---- types added by the cores (first user in brackets) ----
+
+// (Galaxian)
+// Z80 (T80sed; BUSRQ_n inactive). RESET_n and WAIT_n are on the bus: Galaxian's main CPU has video RAM waits and a
+// watchdog / CPU-select reset; its sound boards hold their Z80 in reset on sets that do not use them
+typedef struct packed {
+    logic        reset_n;
+    logic        ce;
+    logic        wait_n;
+    logic        int_n;
+    logic        nmi_n;
+    logic  [7:0] di;
+} z80sed_i_t;
+
+typedef struct packed {
+    logic [15:0] a;
+    logic  [7:0] dout;
+    logic        m1_n;
+    logic        mreq_n;
+    logic        iorq_n;
+    logic        rd_n;
+    logic        wr_n;
+    logic        rfsh_n;
+} z80sed_o_t;
+
+// (Galaxian)
+// S2650 (s2650_cpu around sgs2650; ivec 03, flag unused). reset is on the bus: watchdog reset, held in reset on
+// sets that do not use it
+typedef struct packed {
+    logic        reset;
+    logic        ack;
+    logic  [7:0] dr;
+    logic        irq;
+    logic        sense;
+} s2650_i_t;
+
+typedef struct packed {
+    logic        req;
+    logic [14:0] ad;
+    logic        wr;
+    logic  [7:0] dw;
+    logic        mio;
+    logic        ene;
+    logic        dc;
+    logic  [1:0] ph;
+    logic        intack;
+} s2650_o_t;
+
+// (PunchOut)
 // NEW-PunchOut-2026-10-26: types not in the master yet (merge into Konami82's master; never rename the ones above)
 // 6502 (T65, Mode 00, BCD_en 0 = the RP2A03's core). Enable = one CPU cycle. res_n on the bus: Punch-Out's main
 // latch Q3 resets the RP2A03. Verbatim copy of Arcade-Nintendo's t65_i_t / t65_o_t (its NEW types, not merged yet).
@@ -193,6 +246,173 @@ typedef struct packed {
     logic        rw;                    // 1 = read
 } t65_o_t;
 
+// (Galaxian)
+// 8039 with its external bus (T48 t8039_notri_extrom, EA low, program on pmem; T0 low, P2 inputs high): BUS / ALE /
+// WR out, T1 and P1 inputs used. reset_n is on the bus: held in reset on sets that do not use it
+typedef struct packed {
+    logic        reset_n;
+    logic        xtal_en;
+    logic        int_n;
+    logic        t1;
+    logic  [7:0] db;
+    logic  [7:0] p1;
+    logic  [7:0] pmem_d;
+} mcs48bus_i_t;
+
+typedef struct packed {
+    logic  [7:0] p1;
+    logic  [7:0] p2;
+    logic  [7:0] db;
+    logic        ale;
+    logic        wr_n;
+    logic        rd_n;
+    logic [11:0] pmem_a;
+} mcs48bus_o_t;
+
+// (SpaceInvaders)
+// MC6800 / M6802 (jt680x, 6802 microcode; ext_halt and the 6801 on-chip interrupts inactive). rst is on the bus:
+// Space Invaders' 8080 board resets it with its watchdog and holds it in reset on sets that do not use it
+typedef struct packed {
+    logic        rst;
+    logic        cen;
+    logic        irq;
+    logic        nmi;
+    logic  [7:0] din;
+} m6800_i_t;
+
+typedef struct packed {
+    logic [15:0] a;
+    logic  [7:0] dout;
+    logic        wr;
+} m6800_o_t;
+
+// (CrazyClimber)
+// AY-3-8910 (jt49_bus, COMP 3'b010; IOA_in / IOB_in low). sel is on the bus: Tangram Q and Au divide by 2, the rest don't;
+// IOA_out / IOB_out = Crazy Climber sample start / loop address
+typedef struct packed {
+    logic        ce;
+    logic        sel;
+    logic        bdir;
+    logic        bc1;
+    logic  [7:0] din;
+} aysel_i_t;
+
+typedef struct packed {
+    logic  [7:0] dout;
+    logic  [7:0] a;
+    logic  [7:0] b;
+    logic  [7:0] c;
+    logic  [7:0] ioa_out;
+    logic  [7:0] iob_out;
+} aysel_o_t;
+
+// (Irem1)
+// MC6803 (rtl/cpu/m6803.sv around jt680x, 6801 microcode): expanded multiplexed mode, external ROM; on-chip
+// registers 0x00-0x1F and RAM 0x80-0xFF, everything else is an external access (x_cs). cen = crystal rate (4 x E)
+typedef struct packed {
+    logic        cen;
+    logic        irq;
+    logic        nmi;
+    logic  [7:0] xdin;
+    logic  [7:0] p1_in;
+    logic  [4:0] p2_in;
+    logic  [2:0] mode;
+} m6803_i_t;
+
+typedef struct packed {
+    logic [15:0] addr;
+    logic  [7:0] dout;
+    logic        wr;
+    logic        x_cs;
+    logic  [7:0] p1_out;
+    logic  [4:0] p2_out;
+} m6803_o_t;
+
+// (Irem1)
+// JT5205-2026-10-24: MSM5205 types for our rtl/sound/msm5205.sv, replaced by jotego's jt5205 (user: fleet-wide).
+// MSM-REVERT-2026-10-25: our msm5205.sv back in the pool (user: jt5205 Moon Patrol rock "thonk" inaudible on HW)
+typedef struct packed {
+    logic        step;
+    logic        rst;
+    logic  [3:0] data;
+} msm5205_i_t;
+
+typedef struct packed {
+    logic [11:0] signal;                // signed
+} msm5205_o_t;
+
+// (Irem1)
+// MSM5205 ADPCM (rtl/sound/jt5205, Jose Tejada): cen = the chip's 384 kHz clock, sel = S1/S2 prescaler pins,
+// rst = RESET pin. irq = the VCK strobe (sample rate) that feeds the sound CPU's NMI; vclk = the VCK pin level.
+typedef struct packed {
+    logic        rst;
+    logic        cen;
+    logic  [1:0] sel;
+    logic  [3:0] din;
+} jt5205_i_t;
+
+typedef struct packed {
+    logic [11:0] sound;                 // signed
+    logic        irq;
+    logic        vclk;
+} jt5205_o_t;
+
+// (Phoenix)
+// Z80 / 8085 (T80pa, Mode 0, Phoenix core copy of rtl/cpu/T80: runtime I8080 = 8080 mode, I8085 = opcode 20 is RIM
+// loading RIM_D). Reset = the core reset (not on the bus); BUSRQ_n inactive.
+typedef struct packed {
+    logic        cen_p;
+    logic        cen_n;
+    logic        wait_n;
+    logic        int_n;
+    logic        nmi_n;
+    logic        i8080;
+    logic        i8085;
+    logic  [7:0] rim_d;
+    logic  [7:0] di;
+} z80pa85_i_t;
+
+typedef struct packed {
+    logic [15:0] a;
+    logic  [7:0] dout;
+    logic        m1_n;
+    logic        mreq_n;
+    logic        iorq_n;
+    logic        rd_n;
+    logic        wr_n;
+    logic        rfsh_n;
+    logic        sod;                   // 8085 SID / SOD: SOD latched by SIM (opcode 30)
+} z80pa85_o_t;
+
+// (Phoenix)
+// TMS36XX family (rtl/sound/tms36xx.sv: MM6221AA tunes, TMS3615 / TMS3617 notes); parameters per instance
+typedef struct packed {
+    logic        tune_we;
+    logic  [1:0] tune;
+    logic        note_we;
+    logic  [1:0] note_octave;
+    logic  [3:0] note;
+    logic        enable_we;
+    logic  [5:0] voice_enable;
+    logic        cfg_b;                 // the instance's second parameter set (static between resets)
+} tms36xx_i_t;
+
+typedef struct packed {
+    logic [15:0] audio;                 // signed
+    logic        ce_snd;
+} tms36xx_o_t;
+
+// (Phoenix)
+// Discrete sound engine (rtl/sound/dsnd_engine.sv); the program download (MRA index 5) is wired in the dispatcher
+typedef struct packed {
+    logic [63:0] src;                   // sources 7..0, one byte each
+} dsnd_i_t;
+
+typedef struct packed {
+    logic [15:0] out;                   // signed
+} dsnd_o_t;
+
+// (PunchOut)
 // VLM5030 (jotego jtcores modules/vlm5030: vlm5030_gl, Arnim Laeuger's gate-level VHDL; i_tst1 0, i_vref / i_tst3
 // default). rst is the chip's RST pin (Punch-Out main latch Q4), not the core reset. oscen = 3.579545 MHz enable
 // (the model needs clk >= 2x OSC).
@@ -212,5 +432,432 @@ typedef struct packed {
     logic  [5:0] dao;                   // unsigned DAC + PWM (the pin)
     logic  [9:0] audio;                 // signed PCM (~8136 Hz)
 } vlm5030_o_t;
+
+// (Namco6809)
+// Namco 15XX WSG (8 voices). The registers live in the first 64 bytes of the CPU-shared sound RAM; the chip
+// snoops CPU writes there (MAME namco_15xx_device::sharedram_w). dac_mode picks the board's volume DAC
+// (0 = Super Pac-Man LS273 + 4066 resistor ladder, 1 = Mappy / Gaplus 99XX).
+typedef struct packed {
+    logic        sound_en;      // LS259 SOUND ON
+    logic  [1:0] dac_mode;
+    logic        reg_wr;        // one clock per CPU write to shared RAM offset 0x00-0x3F
+    logic  [5:0] reg_addr;
+    logic  [7:0] reg_din;
+    logic  [3:0] wave_d;        // waveform PROM nibble at wave_a
+} wsg15_i_t;
+
+typedef struct packed {
+    logic  [7:0] wave_a;        // waveform PROM address {waveform, step}
+    logic [15:0] sound;         // signed mono
+} wsg15_o_t;
+
+// (Namco6809)
+// Namco 56XX / 58XX / 59XX custom I/O (MB8843, undumped: behavioural per MAME namcoio.cpp), runtime-configured
+// by kind; CPU side is the 16XX nibble buffer (16 nibbles per chip).
+typedef struct packed {
+    logic  [1:0] kind;          // 0 = 56XX, 1 = 58XX, 2 = 59XX
+    logic        reset_n;       // LS259 4 RESET
+    logic        run;           // vblank strobe: process the command (MAME customio_run 50 us after vblank)
+    logic        wr;
+    logic  [3:0] addr;
+    logic  [3:0] din;
+    logic [15:0] in;            // {in3, in2, in1, in0} 4-bit input ports
+} namcoio_i_t;
+
+typedef struct packed {
+    logic  [3:0] dout;
+    logic  [7:0] out;           // {out1, out0} 4-bit output ports (lamps, coin lockout, DIP mux select)
+} namcoio_o_t;
+
+// (LaserdiscGames)
+// Z80 (T80s, Mode 0, T2Write 1, IOWait 1; BUSRQ_n inactive) with WAIT_n driven: Dragon's Lair inserts a wait state for the AY
+typedef struct packed {
+    logic        ce;
+    logic        wait_n;
+    logic        int_n;
+    logic        nmi_n;
+    logic  [7:0] di;
+} z80w_i_t;
+
+typedef struct packed {
+    logic [15:0] a;
+    logic  [7:0] dout;
+    logic        m1_n;
+    logic        mreq_n;
+    logic        iorq_n;
+    logic        rd_n;
+    logic        wr_n;
+    logic        rfsh_n;
+} z80w_o_t;
+
+// (LaserdiscGames)
+// AY-3-8910 register core (jt49, no bus wrapper; sel = 1). rst_n is on the bus: Dragon's Lair II holds its board in reset during the SDRAM phase sweep
+typedef struct packed {
+    logic        rst_n;
+    logic        ce;
+    logic  [3:0] addr;
+    logic        cs_n;
+    logic        wr_n;
+    logic  [7:0] din;
+} jt49_i_t;
+
+typedef struct packed {
+    logic  [7:0] a;
+    logic  [7:0] b;
+    logic  [7:0] c;
+} jt49_o_t;
+
+// (LaserdiscGames)
+// MCL86 8088 execution unit (mcl86_eu_core, TEST_N inactive). The bus unit (biu_max) stays on each board: its timing
+// parameters differ per board. reset_n is on the bus: Dragon's Lair II holds its CPU in reset during the SDRAM phase sweep
+typedef struct packed {
+    logic        reset_n;
+    logic        biu_done;
+    logic        biu_clk_counter_zero;
+    logic        biu_nmi_caught;
+    logic        biu_intr;
+    logic  [7:0] pfq_top_byte;
+    logic        pfq_empty;
+    logic [15:0] pfq_addr_out;
+    logic [15:0] biu_es;
+    logic [15:0] biu_ss;
+    logic [15:0] biu_cs;
+    logic [15:0] biu_ds;
+    logic [15:0] biu_rm;
+    logic [15:0] biu_reg;
+    logic [15:0] biu_ret;
+} mcl86eu_i_t;
+
+typedef struct packed {
+    logic [15:0] eu_biu_command;
+    logic [15:0] eu_biu_dataout;
+    logic [15:0] eu_register_r3;
+    logic        eu_prefix_lock;
+    logic        eu_flag_i;
+    logic        biu_nmi_debounce;
+} mcl86eu_o_t;
+
+// (LaserdiscGames)
+// Laserdisc player HLE (rtl/ldp/ldp_top.sv: shared transport + LD-V1000 / PR-7820 / PR-8210 / LDP-1450 front-ends)
+typedef struct packed {
+    logic  [3:0] player_sel;
+    logic        pr8210_555;            // PR-8210 bit boundary: 0 = bit-banged (870 us), 1 = Gottlieb 555 (1497 us)
+    logic        cmd_stb;
+    logic  [7:0] cmd_byte;
+    logic        blip;
+    logic        tx_pop;
+    logic        pause;
+    logic        disc_hold;
+    logic  [3:0] post_seek_frames;
+    logic        disc_2997;
+    logic [16:0] park_frame;
+    logic        status_rd;
+    logic        cmd_oe;                // host drives the LD data bus (DL: misc b5 low = U21 enabled)
+} ldp_i_t;
+
+typedef struct packed {
+    logic  [7:0] status;
+    logic        status_strobe;
+    logic        command_strobe;
+    logic        ready_n;
+    logic        frame_valid;
+    logic        tx_valid;
+    logic  [7:0] tx_byte;
+    logic        search_cmd;
+    logic        play_end;
+    logic [16:0] curr_frame;
+    logic        playing;
+    logic [16:0] dbg_seek_frame;
+    logic [19:0] dbg_end_frame;
+    logic  [3:0] dbg_flags;
+    logic        txt_we;
+    logic  [1:0] txt_line;
+    logic  [5:0] txt_col;
+    logic  [7:0] txt_glyph;
+    logic        txt_on;
+    logic  [7:0] txt_x;
+    logic  [7:0] txt_y;
+    logic        ldv_fw;                // LD-V1000 is running its real firmware (else HLE)
+} ldp_o_t;
+
+// (LaserdiscGames)
+// Dual-port RAM block (dpram_dc, 8-bit, port A = CPU side read/write, port B = video side read-only)
+typedef struct packed {
+    logic [13:0] a_addr;
+    logic        a_we;
+    logic  [7:0] a_din;
+    logic [13:0] b_addr;
+} ram_i_t;
+
+typedef struct packed {
+    logic  [7:0] a_q;
+    logic  [7:0] b_q;
+} ram_o_t;
+
+// (LaserdiscGames)
+// COP421 (T400 t400_core, opt_type 421, CK divisor 32, crystal CKO; CKO low, IN port high; POR from t400_por)
+typedef struct packed {
+    logic        ck_en;
+    logic  [7:0] pm_data;
+    logic  [3:0] dm_data;
+    logic  [7:0] io_l;
+    logic  [3:0] io_g;
+    logic        si;
+} t400_i_t;
+
+typedef struct packed {
+    logic  [9:0] pm_addr;
+    logic  [5:0] dm_addr;
+    logic        dm_we;
+    logic  [3:0] dm_data;
+    logic  [7:0] io_l;
+    logic  [7:0] io_l_en;
+    logic  [3:0] io_d;
+    logic  [3:0] io_d_en;
+    logic  [3:0] io_g;
+    logic  [3:0] io_g_en;
+    logic        so;
+    logic        so_en;
+    logic        sk;
+    logic        sk_en;
+} t400_o_t;
+
+// (UPLFramebuffer)
+// YM2203 (jt03, YM2203_LUMPED 0). rst is on the bus: ninjakd2's sound reset. The SSG is AY-3-8910 register- and
+// port-compatible, so the pair can also stand in for two AY8910s
+typedef struct packed {
+    logic        rst;
+    logic        ce;
+    logic        cs_n;
+    logic        wr_n;
+    logic        addr;
+    logic  [7:0] din;
+    logic  [7:0] ioa_in;
+    logic  [7:0] iob_in;
+} ym2203_i_t;
+
+typedef struct packed {
+    logic  [7:0] dout;
+    logic        irq_n;
+    logic  [7:0] ioa_out;
+    logic  [7:0] iob_out;
+    logic        ioa_oe;                // port is an output (SSG register 7 bit 6 / 7)
+    logic        iob_oe;
+    logic  [9:0] psg_snd;               // SSG only, unsigned
+    logic [15:0] snd;                   // FM + SSG, signed
+} ym2203_o_t;
+
+// (UPLFramebuffer)
+// Dual-port RAM block (dpram_dc, true dual port, both ports read/write). One bus shape for every pooled RAM:
+// each instance uses the low widthad address bits and its width_a data bits; be is used by the 32-bit ones only
+typedef struct packed {
+    logic [13:0] a_addr;
+    logic        a_we;
+    logic  [3:0] a_be;
+    logic [31:0] a_din;
+    logic [13:0] b_addr;
+    logic        b_we;
+    logic  [3:0] b_be;
+    logic [31:0] b_din;
+} dpram_i_t;
+
+typedef struct packed {
+    logic [31:0] a_q;
+    logic [31:0] b_q;
+} dpram_o_t;
+
+// (BallyMidwayMCR)
+// AY-3-8910 (jt49_bus, sel = 1; inputs as ay_i_t) with port A output: MCR SSIO volume counters (added by the MCR core)
+typedef struct packed {
+    logic  [7:0] dout;
+    logic  [7:0] a;
+    logic  [7:0] b;
+    logic  [7:0] c;
+    logic  [7:0] ioa_out;
+    logic  [7:0] iob_out;
+    logic  [9:0] sound;                 // jt49 internal A+B+C mix (registered per accumulator cycle)
+} ayio_o_t;
+
+// (Exidy)
+// dsndlr: Exidy's dsnd_engine (stereo out / out_r + sample strobe). Phoenix's dsnd copy is mono (dsnd_i_t / dsnd_o_t
+// = src / out): same src, different outputs, so a different type until the two engines are merged.
+typedef struct packed {
+    logic [63:0] src;                   // sources 7..0, one byte each
+} dsndlr_i_t;
+
+typedef struct packed {
+    logic [15:0] out;                   // signed
+    logic [15:0] out_r;                 // signed
+    logic        sample;                // one clk at the start of each sample period
+} dsndlr_o_t;
+
+// (Exidy)
+// Exidy's own chip models (rtl/sound/). rst is on every bus: each board drives its own reset (sound board snd_rst,
+// Car Polo reset | ~cp, Star Fire reset | ~sf), so a pooled chip behaves exactly as the board's private copy did.
+// MC6821 PIA (pia6821)
+typedef struct packed {
+    logic        rst;
+    logic        ce;
+    logic        cs;
+    logic        rw;                    // 1 = read
+    logic  [1:0] rs;
+    logic  [7:0] din;
+    logic  [7:0] pa_i;
+    logic        ca1;
+    logic        ca2_i;
+    logic  [7:0] pb_i;
+    logic        cb1;
+    logic        cb2_i;
+} pia6821_i_t;
+
+typedef struct packed {
+    logic  [7:0] dout;
+    logic        irqa;
+    logic        irqb;
+    logic  [7:0] pa_o;
+    logic  [7:0] pa_oe;
+    logic        ca2_o;
+    logic        ca2_oe;
+    logic  [7:0] pb_o;
+    logic  [7:0] pb_oe;
+    logic        cb2_o;
+    logic        cb2_oe;
+} pia6821_o_t;
+
+// (Exidy)
+// 8253 PIT (pit8253)
+typedef struct packed {
+    logic        rst;
+    logic        wr_en;
+    logic  [1:0] a;
+    logic  [7:0] din;
+    logic        clk_ce;
+    logic  [2:0] gate;
+} pit8253_i_t;
+
+typedef struct packed {
+    logic  [2:0] out;
+} pit8253_o_t;
+
+// (Exidy)
+// 6532 RIOT (riot6532)
+typedef struct packed {
+    logic        rst;
+    logic        ce;
+    logic        ram_cs;
+    logic        io_cs;
+    logic        rw;
+    logic  [6:0] a;
+    logic  [7:0] din;
+    logic  [7:0] pa_i;
+    logic  [7:0] pb_i;
+} riot6532_i_t;
+
+typedef struct packed {
+    logic  [7:0] dout;
+    logic        irq;
+    logic  [7:0] pa_pins;
+    logic  [7:0] pb_pins;
+} riot6532_o_t;
+
+// (Exidy)
+// MC6840 PTM (ptm6840)
+typedef struct packed {
+    logic        rst;
+    logic        ce;
+    logic        cs;
+    logic        rw;
+    logic  [2:0] rs;
+    logic  [7:0] din;
+    logic  [2:0] cx;
+} ptm6840_i_t;
+
+typedef struct packed {
+    logic  [7:0] dout;
+    logic  [2:0] o;
+    logic        irq;
+} ptm6840_o_t;
+
+// (Exidy)
+// MC3417 CVSD decoder (mc3417)
+typedef struct packed {
+    logic        rst;
+    logic        bclk;
+    logic        din;
+} mc3417_i_t;
+
+typedef struct packed {
+    logic [23:0] integ;                 // signed Q16
+} mc3417_o_t;
+
+// (Exidy)
+// TMS5220 with the /RS /WS bus interface (tms5220_rsws; CLK_HZ / TMS_HZ stay instance parameters)
+typedef struct packed {
+    logic        reset;
+    logic        pause;
+    logic        rs_n;
+    logic        ws_n;
+    logic  [7:0] d_in;
+} tms5220rsws_i_t;
+
+typedef struct packed {
+    logic  [7:0] d_out;
+    logic        ready_n;
+    logic        int_n;
+    logic [15:0] audio;                 // signed
+} tms5220rsws_o_t;
+
+// (Universal)
+// MC6845 CRTC (rtl/video/mc6845.vhd, David Banks / Mike Stirling; no generics; CURSOR unused, LPSTB low). reset_n is on the bus:
+// each board holds the chip in reset while it is not the active one (Castle: reset | ~dcastle, TMS: reset | ~tms).
+// Castle writes only (r_nw 0, do unused); the TMS board reads registers back through do.
+typedef struct packed {
+    logic        reset_n;
+    logic        clken;
+    logic        enable;
+    logic        r_nw;
+    logic        rs;
+    logic  [7:0] di;
+} mc6845_i_t;
+
+typedef struct packed {
+    logic  [7:0] dout;
+    logic        vsync;
+    logic        hsync;
+    logic        vblank;
+    logic        hblank;
+    logic        de;
+    logic [13:0] ma;
+    logic  [4:0] ra;
+} mc6845_o_t;
+
+// (Universal)
+// TMS9900 / TMS9980A (Piehl's tms9900.vhd as edited in Universal: no scratchpad, in-file multiplier, byte_bus, ir_step2;
+// generic cycle_clks_g stays at its default 8; waits 0, scratch_en 0, turbo 0 and the debug outputs are constants /
+// unused). reset is the CPU pin (high), on the bus: the TMS board holds it with reset | ~tms.
+typedef struct packed {
+    logic        reset;
+    logic [15:0] data_in;
+    logic        ready;
+    logic        int_req;
+    logic  [3:0] ic03;
+    logic        cruin;
+    logic        hold;
+    logic        byte_bus;
+    logic        ir_step2;
+} tms9900_i_t;
+
+typedef struct packed {
+    logic [15:0] addr_out;
+    logic [15:0] data_out;
+    logic        rd;
+    logic        wr;
+    logic        iaq;
+    logic        as;
+    logic        int_ack;
+    logic        cruout;
+    logic        cruclk;
+    logic        holda;
+} tms9900_o_t;
 
 endpackage
