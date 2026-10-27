@@ -1,0 +1,143 @@
+<misterromdescription>
+    <name>Punch-Out!!</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Punch-Out!!</series>
+    <year>1984</year>
+    <manufacturer>Nintendo</manufacturer>
+    <category>Sports</category>
+
+    <setname>punchout</setname>
+    <parent>punchout</parent>
+    <mameversion>0289</mameversion>
+    <rbf>PunchOut</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>horizontal</rotation>
+    <flip>yes</flip>
+
+    <players>1</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>3</num_buttons>
+    <buttons names="L Blow,R Blow,KO Blow,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="10,10">
+        <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest"/>
+        <dip name="Time" bits="2,3" ids="Longest,Long,Short,Shortest"/>
+        <dip name="Demo Sounds" bits="4" ids="Off,On"/>
+        <dip name="Rematch At A Discount" bits="5" ids="Off,On"/>
+        <dip name="Service Mode" bits="7" ids="Off,On"/>
+        <dip name="Coinage" bits="8,11" ids="5C/1C,4C/1C,3C/1C,2C/1C,1C/1C,1C/1C,1 Coin/2 Credits (2 Credits/1 Play),1 Coin/3 Credits (2 Credits/1 Play),1C/2C,1C/2C,1C/2C,1C/3C,1C/4C,1C/5C,1C/6C,Free Play" values="14,11,12,1,0,3,8,13,2,4,9,5,6,10,7,15"/>
+        <dip name="Copyright" bits="15" ids="Nintendo,Nintendo of America Inc."/>
+    </switches>
+
+    <!-- Index 0: MAME regions, packed store of rtl/punchout_board.sv (region table in index 1 bytes 64-111) -->
+    <rom index="0" md5="none" zip="punchout.zip">
+        <part crc="a4003adc" name="chp1-c.8l"/>
+        <part crc="745ecf40" name="chp1-c.8k"/>
+        <part crc="7a7f870e" name="chp1-c.8j"/>
+        <part crc="5d8123d7" name="chp1-c.8h"/>
+        <part crc="c8a55ddb" name="chp1-c.8f"/>
+        <part crc="cb6ef376" name="chp1-c.4k"/>
+        <part crc="49b763bc" name="chp1-b.4c" offset="0x0" length="0x800"/>
+        <part crc="49b763bc" name="chp1-b.4c" offset="0x1000" length="0x800"/>
+        <part crc="49b763bc" name="chp1-b.4c" offset="0x800" length="0x800"/>
+        <part crc="49b763bc" name="chp1-b.4c" offset="0x1800" length="0x800"/>
+        <part crc="08bc6d67" name="chp1-b.4d" offset="0x0" length="0x800"/>
+        <part crc="08bc6d67" name="chp1-b.4d" offset="0x1000" length="0x800"/>
+        <part crc="08bc6d67" name="chp1-b.4d" offset="0x800" length="0x800"/>
+        <part crc="08bc6d67" name="chp1-b.4d" offset="0x1800" length="0x800"/>
+        <part crc="c075f831" name="chp1-b.4a" offset="0x0" length="0x800"/>
+        <part crc="c075f831" name="chp1-b.4a" offset="0x1000" length="0x800"/>
+        <part crc="c075f831" name="chp1-b.4a" offset="0x800" length="0x800"/>
+        <part crc="c075f831" name="chp1-b.4a" offset="0x1800" length="0x800"/>
+        <part crc="c4cc2b5a" name="chp1-b.4b" offset="0x0" length="0x800"/>
+        <part crc="c4cc2b5a" name="chp1-b.4b" offset="0x1000" length="0x800"/>
+        <part crc="c4cc2b5a" name="chp1-b.4b" offset="0x800" length="0x800"/>
+        <part crc="c4cc2b5a" name="chp1-b.4b" offset="0x1800" length="0x800"/>
+        <part crc="bd1d4b2e" name="chp1-v.2r"/>
+        <part crc="dd9a688a" name="chp1-v.2t"/>
+        <part crc="da6a3c4b" name="chp1-v.2u"/>
+        <part crc="8c734a67" name="chp1-v.2v"/>
+        <part crc="2e74ad1d" name="chp1-v.3r"/>
+        <part crc="630ba9fb" name="chp1-v.3t"/>
+        <part crc="6440321d" name="chp1-v.3u"/>
+        <part crc="bb7b7198" name="chp1-v.3v"/>
+        <part crc="4e5b0fe9" name="chp1-v.4r"/>
+        <part crc="37ffc940" name="chp1-v.4t"/>
+        <part crc="1a7521d4" name="chp1-v.4u"/>
+        <part crc="75be7aae" name="chp1-v.6p" offset="0x0" length="0x800"/>
+        <part crc="75be7aae" name="chp1-v.6p" offset="0x1000" length="0x800"/>
+        <part crc="75be7aae" name="chp1-v.6p" offset="0x800" length="0x800"/>
+        <part crc="75be7aae" name="chp1-v.6p" offset="0x1800" length="0x800"/>
+        <part crc="daf74de0" name="chp1-v.6n" offset="0x0" length="0x800"/>
+        <part crc="daf74de0" name="chp1-v.6n" offset="0x1000" length="0x800"/>
+        <part crc="daf74de0" name="chp1-v.6n" offset="0x800" length="0x800"/>
+        <part crc="daf74de0" name="chp1-v.6n" offset="0x1800" length="0x800"/>
+        <part crc="4cb7ea82" name="chp1-v.8p" offset="0x0" length="0x800"/>
+        <part crc="4cb7ea82" name="chp1-v.8p" offset="0x1000" length="0x800"/>
+        <part crc="4cb7ea82" name="chp1-v.8p" offset="0x800" length="0x800"/>
+        <part crc="4cb7ea82" name="chp1-v.8p" offset="0x1800" length="0x800"/>
+        <part crc="1c0d09aa" name="chp1-v.8n" offset="0x0" length="0x800"/>
+        <part crc="1c0d09aa" name="chp1-v.8n" offset="0x1000" length="0x800"/>
+        <part crc="1c0d09aa" name="chp1-v.8n" offset="0x800" length="0x800"/>
+        <part crc="1c0d09aa" name="chp1-v.8n" offset="0x1800" length="0x800"/>
+        <part crc="ea0bbb31" name="chp1-c.6p"/>
+        <part repeat="0xC000">00</part>
+        <part crc="e9ca3ac6" name="chp1-b-6e_pink.6e"/>
+        <part crc="02be56ab" name="chp1-b-6f_pink.6f"/>
+        <part crc="11de55f1" name="chp1-b-7f_pink.7f"/>
+        <part crc="fddaa777" name="chp1-b-7e_pink.7e"/>
+        <part crc="c3d5d71f" name="chp1-b-8e_pink.8e"/>
+        <part crc="a3037155" name="chp1-b-8f_pink.8f"/>
+        <part repeat="0x400">00</part>
+        <part crc="ddac5f0e" name="chp1-b-6e_white.6e"/>
+        <part crc="846c6261" name="chp1-b-6f_white.6f"/>
+        <part crc="1682dd30" name="chp1-b-7f_white.7f"/>
+        <part crc="47adf7a2" name="chp1-b-7e_white.7e"/>
+        <part crc="b0fc15a8" name="chp1-b-8e_white.8e"/>
+        <part crc="1ffd894a" name="chp1-b-8f_white.8f"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map, ROM region table, byte 112 ROMREGION_INVERT slots (see Arcade-PunchOut.sv) -->
+    <rom index="1">
+        <part>
+            00 01 00 00 00 00 10 10 FF FF 80 80 00 01 80 80
+            2E 00 06 07 00 13 14 00 04 03 01 02 00 12 16 11
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 C0 00 C0 00 E0 00 20 00 E0 00 00 00
+            40 00 20 01 00 00 40 00 60 01 00 00 20 02 80 03
+            00 00 80 00 00 04 00 00 40 00 00 00 00 00 1C 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 01 02 03 04 05 FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF 06 FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            07 08 FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            09 0A FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            0B 0C 0D 0E 0F FF 10 FF 11 12 13 14 15 FF 16 FF
+            17 18 19 1A 1B FF FF FF FF FF FF FF FF FF FF FF
+            1C 1D FF FF 1E 1F FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            20 21 FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+            FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+        </part>
+    </rom>
+
+    <!-- Index 4: battery RAM (C000-C3FF) -->
+    <nvram index="4" size="1024"/>
+
+    <remark>Punch-Out!! (Rev B) (Nintendo)</remark>
+    <mratimestamp>20261024000000</mratimestamp>
+</misterromdescription>

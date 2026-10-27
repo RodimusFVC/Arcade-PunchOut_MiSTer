@@ -1,0 +1,47 @@
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+
+# chip pool package FIRST (master: Arcade-Konami82_MiSTer/rtl/chip_pool_pkg.sv + NEW-PunchOut-2026-10-26 types)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/chip_pool_pkg.sv
+# board RAM pool package (master: Arcade-Universal_MiSTer/rtl/ram_pool_pkg.sv, verbatim, md5 72f9c592)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_pool_pkg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE Arcade-PunchOut.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/punchout_board.sv
+# LAYOUT-STEP1-2026-10-27: two monitors -> native stream + HDMI framebuffer (Game Options Screen Layout)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/punchout_layout.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/chp1/chp1_video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/chp1/chp1_board.sv
+# VLMLPF-TEST-2026-10-27: speech output filter (CHP1 2N LM324 network)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/chp1/chp1_speech_lpf.sv
+# SPNCH-2026-10-27: Super Punch-Out!! CHS1-01-EXP (RP5C01 + RP5H01)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/chp1/chs1_exp.sv
+
+# RP2A03 glue + APU (Arcade-Nintendo, ours); the 6502 core (T65) is pooled in rtl/punchout_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/rp2a03_apu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/rp2a03.sv
+# VLM5030 speech: our port of MAME vlm5030.cpp (pooled in rtl/punchout_board.sv)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/vlm5030_lpc.sv
+
+# jotego jtcores modules/vlm5030 (Arnim Laeuger, MPL-2.0), byte-identical VHDL (the jtcores GHDL netlist vlm5030.v is
+# deliberately NOT used: no GHDL netlists in a core)
+# VLM-2026-10-27: out of the build (user: our own speech model comes later); originals below
+# set_global_assignment -name VHDL_FILE rtl/sound/vlm5030/hdl/clock_functions_pack.vhd
+# set_global_assignment -name VHDL_FILE rtl/sound/vlm5030/hdl/vlm5030_pack.vhd
+# set_global_assignment -name VHDL_FILE rtl/sound/vlm5030/hdl/vlm5030_subcircuits.vhd
+# set_global_assignment -name VHDL_FILE rtl/sound/vlm5030/hdl/vlm5030_gl.vhd
+
+set_global_assignment -name QIP_FILE rtl/cpu/T80/T80.qip
+set_global_assignment -name QIP_FILE rtl/cpu/T65/t65.qip
+
+set_global_assignment -name VERILOG_FILE rtl/mister_custom/pause.v
+# set_global_assignment -name VERILOG_FILE rtl/mister_custom/hiscore.v   # NVRAM-2026-10-27: no hiscore module
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mister_custom/controllers.sv
+
+# dpram_dc: VHDL wrapper (md5 411ee0a4) until the SV rewrite (rtl/ram_rom/dpram_dc.sv, copied, not listed) is approved
+set_global_assignment -name VHDL_FILE rtl/ram_rom/dpram_dc.vhd
+
+# MAME artwork (rtl/art/, master copy from Arcade-Centipede): NOT listed until it is wired (dual-screen open question)
+# set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/artwork.sv
+# set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/art_resample.sv
+# set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/png_decode.sv
+# set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/inflate.sv
+# set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/art_xclk.sv
