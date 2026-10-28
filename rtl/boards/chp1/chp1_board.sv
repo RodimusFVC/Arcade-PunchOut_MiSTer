@@ -4,8 +4,8 @@
 //  Copyright (C) 2026 Rodimus
 //
 //  MAME nintendo/punchout.cpp (reference) + CHP1-02 schematic facts. Drives the dispatcher's pools only (never its
-//  own CPU / ROM / RAM). Variant 0 Punch-Out!! map; Super Punch-Out!! protection (RP5C01 / RP5H01, ports 05-07) and
-//  the Arm Wrestling map are TODO.
+//  own CPU / ROM / RAM). Variants: 0 Punch-Out!!, 1 Super Punch-Out!! (RP5C01 / RP5H01 at ports 05-07,
+//  rtl/boards/chp1/chs1_exp.sv), 2 Arm Wrestling (video maps in chp1_video.sv).
 //  Clock enables from CLK_SYS 40.32 MHz (= 2 x the 20.16 MHz video xtal):
 //    Z80 4 MHz (8 MHz xtal / 2): half-cycle ticks at 8 MHz = 40.32 x 25 / 126, exact
 //    RP2A03 CPU cycle 1.789773 MHz (21.47727 MHz / 12) = 40.32 x 125 / 2816, exact
@@ -88,8 +88,6 @@ logic [2:0]  roma_slot, romb_slot;
 logic [17:0] roma_off, romb_off;
 logic [7:0]  roma_q, romb_q;
 assign rom0b_slot = roma_slot; assign rom0b_a = roma_off; assign roma_q = rom0b_d;
-// VLMPORT-2026-10-27: port B phase 7 = VLM5030 ROM (assigns below the video); original:
-// assign rom0_slot  = romb_slot; assign rom0_a  = romb_off; assign romb_q = rom0_d;
 assign romb_q = rom0_d;
 
 // Board RAM pool blocks (port A = CPU, port B = video engine / save path); sizes set by the dispatcher per block:
@@ -127,7 +125,7 @@ logic [17:0] v_roma_off;
 
 chp1_video video
 (
-    .clk(clk), .flip(crt_flip), .aw(variant == 8'd2), .h_adj(h_adj), .v_adj(v_adj),   // ARMW-2026-10-27: .aw
+    .clk(clk), .flip(crt_flip), .aw(variant == 8'd2), .h_adj(h_adj), .v_adj(v_adj),
     .reg_we(vreg_we), .reg_a(z80_o.a[3:0]), .reg_d(z80_o.dout),
     .vtop_a(vtop_ab), .vtop_q(vtop_qb), .vbot_a(vbot_ab), .vbot_q(vbot_qb),
     .spr1_a(spr1_ab), .spr1_q(spr1_qb), .spr2_a(spr2_ab), .spr2_q(spr2_qb),
@@ -211,13 +209,11 @@ end
 // /ME is low (ROM byte from port B phase 7, valid at phase 0)
 logic [7:0] vlm_rom_q = 8'hFF;
 always_ff @(posedge clk) if (ph == 3'd0) vlm_rom_q <= rom0_d;
-// VLMPORT-2026-10-27: original (no model, OSC off):
-// assign vlm5030_0_i = '{rst: mlatch[4], oscen: 1'b0, start: mlatch[5], vcu: mlatch[6], d: vlm_lat};
 assign vlm5030_0_i = '{rst: mlatch[4], oscen: v_ce, start: mlatch[5], vcu: mlatch[6],
                        d: vlm5030_0_o.me_l ? vlm_lat : vlm_rom_q};
 wire   vlm_bsy     = vlm5030_0_o.bsy;
 
-// NMI: set at vblank start while Q0 = 1, cleared by Q0 = 0 (MAME vblank_irq / nmi_mask_w)
+// NMI: set at vblank start while Q0 = 1, cleared by Q0 = 0
 logic vb_d = 1'b0, nmi = 1'b0;
 always_ff @(posedge clk) begin
     vb_d <= vb;
@@ -240,14 +236,13 @@ always_ff @(posedge clk) begin
     if (s_slot) srom_q <= roma_q;
 end
 
-// SPNCH-2026-10-27: Super Punch-Out!! (variant 1) CHS1-01-EXP security board: RP5H01 at 05 / 06, RP5C01 at x7
+// Super Punch-Out!! (variant 1) CHS1-01-EXP security board: RP5H01 at 05 / 06, RP5C01 at x7
 wire       is_spnch = variant == 8'd1;
 wire [7:0] exp_q;
 chs1_exp exp_board (.clk(clk), .reset(reset), .io_wr(io_wr && is_spnch), .a(za[7:0]), .d(z80_o.dout), .q(exp_q));
 
 logic [7:0] zdi = 8'hFF;
 always_ff @(posedge clk) begin
-    // SPNCH-2026-10-27: port x7 (select F0) on Super Punch-Out!!; original first line: if (iorq) case (za[7:0])
     if (iorq && is_spnch && za[3:0] == 4'd7) zdi <= exp_q;
     else if (iorq) case (za[7:0])
         8'h00:   zdi <= in0;
@@ -270,7 +265,7 @@ assign z80_i = '{reset_n: 1'b1, cen_p: z_cen_p, cen_n: z_cen_n, wait_n: 1'b1, in
 
 /////////////////////////////  RP2A03 (sound board part of the CPU board)  /////////////////////////////
 
-// 0000-07FF RAM (4L), 4016 / 4017 sound latches, E000-FFFF ROM (4K); NMI = vblank (MAME: top screen vblank)
+// 0000-07FF RAM (4L), 4016 / 4017 sound latches, E000-FFFF ROM (4K); NMI = vblank (top screen vblank)
 logic        s_rw;
 logic  [7:0] s_do, s_di;
 logic [15:0] s_aux_a, s_aux_b;
@@ -299,17 +294,8 @@ always_ff @(posedge clk) begin
     if (s_ce) mix_lp <= mix_lp + (((32'($signed({2'b00, mix_sum})) <<< 15) - mix_lp) >>> 15);
 end
 assign mix_hp = $signed({2'b00, mix_sum}) - 19'(mix_lp >>> 15);
-// VLMPORT-2026-10-27: original (no speech):
-// assign audio  = (mix_hp > 19'sd32767) ? 16'sd32767 : (mix_hp < -19'sd32768) ? -16'sd32768 : mix_hp[15:0];
-// VLMLPF-TEST-2026-10-27: speech through the schematic's 2N output filter (chp1_speech_lpf.sv); original:
-// wire signed [18:0] mix_all = mix_hp + (19'($signed(vlm5030_0_o.audio)) <<< 5);
 logic signed [15:0] vlm_lpf;
 chp1_speech_lpf speech_lpf (.clk(clk), .reset(reset), .oscen(v_ce), .x(vlm5030_0_o.audio), .y(vlm_lpf));
-// VLMLVL-2026-10-27: speech x1.5 (user on HW: "just a little quiet ... maybe half more volume"); original:
-// wire signed [18:0] mix_all = mix_hp + 19'(vlm_lpf);
-// wire signed [18:0] mix_all = mix_hp + 19'(vlm_lpf) + (19'(vlm_lpf) >>> 1);
-// LAYOUT-STEP1-2026-10-27: Game Options Speech / Music Volume (Exidy form): x vol / 8, shift-adds (no multiplier);
-// Default (8) = the line above
 function automatic logic signed [22:0] vgain(input logic signed [18:0] v, input logic [3:0] g);
     vgain = (g[0] ? 23'(v) : 23'sd0) + (g[1] ? 23'(v) <<< 1 : 23'sd0) + (g[2] ? 23'(v) <<< 2 : 23'sd0)
           + (g[3] ? 23'(v) <<< 3 : 23'sd0);
@@ -322,9 +308,6 @@ wire signed [18:0] mix_all = (mix_v > 23'sd262143) ? 19'sd262143 : (mix_v < -23'
 assign audio  = (mix_all > 19'sd32767) ? 16'sd32767 : (mix_all < -19'sd32768) ? -16'sd32768 : mix_all[15:0];
 
 /* verilator lint_off UNUSED */
-// VLMPORT-2026-10-27: original:
-// wire unused_ok = &{1'b0, variant, zrd, pr_o[0].b_q, pr_o[6].b_q, mlatch[7], mlatch[2:1], vlm5030_0_o.a, vlm5030_0_o.me_l, vlm5030_0_o.mte,
-//                    vlm5030_0_o.dao, vlm5030_0_o.audio};
 wire unused_ok = &{1'b0, variant, zrd, pr_o[0].b_q, pr_o[6].b_q, mlatch[7], mlatch[2:1], vlm5030_0_o.a[15:14],
                    vlm5030_0_o.mte, vlm5030_0_o.dao};
 /* verilator lint_on UNUSED */

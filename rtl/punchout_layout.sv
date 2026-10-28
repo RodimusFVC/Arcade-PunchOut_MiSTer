@@ -12,7 +12,7 @@
 //  layout (OSD order, 0 = default):
 //    0 Vertical, Top above      1 Horizontal, Top left       2 Horizontal, Bottom left    3 Vertical, Bottom above
 //    4 Top only                 5 Bottom only                6 Split: Top HDMI, Bottom CRT  7 Split: Top CRT, Bottom HDMI
-//  LAYOUT-STEP3-2026-10-27: all eight layouts on both outputs (steps 3 + 4: native Horz. 15 kHz and Vert. 31 kHz).
+//  all eight layouts on both outputs (steps 3 + 4: native Horz. 15 kHz and Vert. 31 kHz).
 //
 //  Native stream:
 //    Single / Split: the board's raster, one screen.
@@ -75,7 +75,7 @@ localparam [28:0] FB0_W = 29'h06600000;       // byte 33000000 >> 3; buffer n at
 
 // native stream screen: Top only / Split Top CRT; everything else Bottom (LAYOUT-STEP2: 0-3 too, until steps 3-4)
 wire nat_top = layout == 3'd4 || layout == 3'd7;
-// LAYOUT-STEP2-2026-10-27: the framebuffer composes 0-3 (both screens) and the splits (the HDMI screen alone); the
+// the framebuffer composes 0-3 (both screens) and the splits (the HDMI screen alone); the
 // single layouts leave HDMI on the native stream. Step 1 (splits only) was:
 //   fb_on = (layout == 6 || layout == 7) && !direct_video; en_top = layout == 6; en_bot = layout == 7; 256 x 224, (0, 0)
 wire fb_on   = (layout != 3'd4 && layout != 3'd5) && !direct_video;

@@ -6,14 +6,14 @@
 //  From MAME nintendo/punchout.cpp (reference) + the CHP1-02 schematic facts (Claude/punchout_schematic_facts.md):
 //    top    = bg 32x32 (gfx1, 2bpp)            + big sprite 1 if DFF7.0
 //    bottom = bg 64x32 + row scroll (gfx2)      + big sprite 1 if DFF7.1 + big sprite 2 (gfx4, 2bpp)
-//    big sprite 1 = 16x32-tile map (gfx3, 3bpp), 12-bit zoom, MAME draw_roz; ONE engine feeds both screens (the
+//    big sprite 1 = 16x32-tile map (gfx3, 3bpp), 12-bit zoom (rotate / zoom); ONE engine feeds both screens (the
 //    schematic fans CMP* out to both colour muxes), only the palette half differs
 //  Every layer is fetched per pixel (no line buffers): 8 CLK_SYS per 5.04 MHz pixel (CLK_SYS = 40.32 MHz).
 //  Pipeline, one pixel period each: S1 video RAM reads, S2 ROM reads, S3 pens + colour PROM reads, then out.
 //  Output x = fetch x - 3, so the blanking window is shifted by 3 pixels against the fetch counter.
 //  Raster 320 x 262 (#unverified: H / V totals not traced; 5.04 MHz / 320 = 15.75 kHz, 60.1 Hz), visible 256 x 224 =
 //  MAME rows 16-239.
-//  ARMW-2026-10-27: Arm Wrestling (aw, variant 2; MAME armwrest_state): top bg at F800 (gfx1, attr b7 = code b10, no
+//  Arm Wrestling (aw, variant 2): top bg at F800 (gfx1, attr b7 = code b10, no
 //    flip), bottom bg 32x32 at F000 (gfx1, no scroll, bottom palette), fg text layer at D800 (gfx2 3bpp, over everything,
 //    pen 7 clear), big sprite 1 = 32x16-tile map in two 16x16 halves (x flip swaps them). The three tilemaps do not
 //    scroll, so their ROM bytes are prefetched once per 8-pixel tile during the previous tile (7 reads per 8 pixels, on
@@ -27,7 +27,7 @@ module chp1_video
 (
     input  logic        clk,            // CLK_SYS 40.32 MHz
     input  logic        flip,           // Flip Screen: 180 degrees, both screens
-    input  logic        aw,             // ARMW-2026-10-27: Arm Wrestling video (variant 2)
+    input  logic        aw,             // Arm Wrestling video (variant 2)
     input  logic  [3:0] h_adj,
     input  logic  [3:0] v_adj,
 
@@ -73,7 +73,7 @@ module chp1_video
     output logic        vs,
     output logic        hblank,
     output logic        vblank,
-    output logic        vb              // MAME vblank (rows 240-15): Z80 NMI source, RP2A03 NMI
+    output logic        vb              // vblank (rows 240-15): Z80 NMI source, RP2A03 NMI
 );
 
 localparam logic [2:0] SLOT_GFX1 = 3'd2, SLOT_GFX2 = 3'd3, SLOT_GFX3 = 3'd4, SLOT_GFX4 = 3'd5;
@@ -96,7 +96,7 @@ end
 assign ph     = phc;
 assign ce_pix = phc == 3'd3;                            // mid-period: the output registers change at pend
 
-// fetch coordinates (MAME bitmap x / y); Flip Screen mirrors both (visible rows 16-239 map onto themselves)
+// fetch coordinates (bitmap x / y); Flip Screen mirrors both (visible rows 16-239 map onto themselves)
 wire [7:0] fx  = flip ? ~hc[7:0] : hc[7:0];
 wire [7:0] fy  = flip ? ~vc[7:0] : vc[7:0];
 wire [7:0] fyn = flip ? ~vnext[7:0] : vnext[7:0];      // next line, for the per-line set-up during hc 319
@@ -112,7 +112,7 @@ wire        bs1_on = zoom != 12'd0;
 wire  [1:0] bs1_mon = r[7][1:0];                        // [0] top, [1] bottom
 wire        pbank_bot = r[13][0], pbank_top = r[13][1];
 
-/////////////////////////////  Big sprite 1 (MAME punchout_state::draw_big_sprite)  /////////////////////////////
+/////////////////////////////  Big sprite 1  /////////////////////////////
 
 // sx = 4096 - X; if (sx > 4096 - 4*127) sx -= 4096;  sy = -Y; if (sy <= -256 + zoom/0x40) sy += 512; sy += 12
 wire        [11:0] sxr = {r[3][3:0], r[2]};
@@ -152,7 +152,7 @@ wire [7:0] bs1_y  = aw ? {1'b0, cy[22:16]} : cy[23:16];
 // Arm Wrestling bs1_scan: tile (col, row) at (col / 16) * 256 + row * 16 + col % 16; the x-flip map takes col ^ 16
 wire [4:0] bs1_col = bs1_x[7:3] ^ ((aw && r[6][0]) ? 5'h10 : 5'h00);
 
-/////////////////////////////  Big sprite 2 (MAME punchout_state::drawbs2: no zoom)  /////////////////////////////
+/////////////////////////////  Big sprite 2 (no zoom)  /////////////////////////////
 
 // sx = 512 - X; if (sx > 512 - 127) sx -= 512; sx -= 55;  sy = -Y + 256 * (YH & 1) + 3
 wire        [8:0] sx2r = {r[9][0], r[8]};
@@ -182,10 +182,6 @@ wire  [8:0] tg_h  = tg_wr ? tg_h0 - 9'd320 : tg_h0;
 wire  [8:0] tg_v  = tg_wr ? vnext : vc;
 wire  [7:0] tg_fx = flip ? ~tg_h[7:0] : tg_h[7:0];
 wire  [7:0] tg_fy = flip ? ~tg_v[7:0] : tg_v[7:0];
-// ARMW-2026-10-27: original vtop_a / vbot_a / spr1_a:
-// assign vtop_a = {fy[7:3], fx[7:3], phc[0]};
-// assign vbot_a = phc[1] ? {6'd0, fyn[7:3], phc[0]} : {fy[7:3], btx[8:3], phc[0]};
-// assign spr1_a = {bs1_y[7:3], bs1_x[6:3], sb};
 assign vtop_a = aw ? {tg_fy[7:3], tg_fx[7:3], phc[0]} : {fy[7:3], fx[7:3], phc[0]};
 assign vbot_a = aw ? {~phc[1], tg_fy[7:3], tg_fx[7:3], phc[0]}
               : phc[1] ? {6'd0, fyn[7:3], phc[0]} : {fy[7:3], btx[8:3], phc[0]};
@@ -337,14 +333,11 @@ wire [1:0] q_pix = {q3_d1[q3_bit], q3_d0[q3_bit]};
 wire       p_opq = p3_in && bs1_on && p_pix != 3'd7;  // transparent pen 7
 wire       q_opq = q3_in && q_pix != 2'd3;             // transparent pen 3
 
-// palette index within the screen's 256 pens (MAME pens 0x000-0x0FF top, 0x100-0x1FF bottom)
+// palette index within the screen's 256 pens (pens 0x000-0x0FF top, 0x100-0x1FF bottom)
 wire [1:0] at_pix = {a3_t1[a3_tbit], a3_t0[a3_tbit]};
 wire [1:0] ab_pix = {a3_b1[a3_bbit], a3_b0[a3_bbit]};
 wire [2:0] af_pix = {a3_f2[a3_fbit], a3_f1[a3_fbit], a3_f0[a3_fbit]};
 wire       f_opq  = aw && af_pix != 3'd7;              // fg transparent pen 7
-// ARMW-2026-10-27: original top_idx / bot_idx (Punch-Out layers only):
-// wire [7:0] top_idx = (p_opq && bs1_mon[0]) ? {p3_col, p_pix} : {1'b0, t3_col, t_pix};
-// wire [7:0] bot_idx = q_opq ? {q3_col, q_pix} : (p_opq && bs1_mon[1]) ? {p3_col, p_pix} : {1'b0, b3_col, b_pix};
 wire [7:0] top_bg  = aw ? {1'b0, a3_tcol, at_pix} : {1'b0, t3_col, t_pix};
 wire [7:0] bot_bg  = aw ? {1'b0, a3_bcol, ab_pix} : {1'b0, b3_col, b_pix};
 wire [7:0] top_idx = (p_opq && bs1_mon[0]) ? {p3_col, p_pix} : top_bg;
@@ -383,7 +376,7 @@ always_ff @(posedge clk) if (pend) begin
     vb     <= ~(vcn >= 9'd16 && vcn < 9'd240);
     hs     <= hcn_s >= hs0 && hcn_s < hs0 + 10'sd24;
     if (hlast) vs <= vcn_s >= vs0 && vcn_s < vs0 + 10'sd3;
-    // outputs are active low on the BAK board (MAME 255 - pal4bit)
+    // outputs are active low on the BAK board (inverted 4-bit levels)
     {top_r, top_g, top_b} <= (hvis && vvis) ? ~{tr, tr, tg, tg, tb, tb} : 24'd0;
     {bot_r, bot_g, bot_b} <= (hvis && vvis) ? ~{br, br, bg, bg, bb, bb} : 24'd0;
 end

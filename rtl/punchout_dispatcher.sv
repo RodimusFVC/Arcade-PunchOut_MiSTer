@@ -9,17 +9,17 @@
 //
 //  Variants (index 1 byte 0; numbering = tools/gen_mra.py SUPPORTED), MAME nintendo/punchout.cpp:
 //    0  Punch-Out!!        (punchout, punchouta, punchoutah, punchoutj, punchita)  CHP1 CPU + VIDEO + BAK
-//    1  Super Punch-Out!!  (spnchout, spnchouta, spnchoutj)    as 0 + CHS1-01-EXP (RP5C01 + RP5H01 protection): TODO
-//    2  Arm Wrestling      (armwrest)                          as 0, different VIDEO / BAK maps (+ fg tilemap): TODO
+//    1  Super Punch-Out!!  (spnchout, spnchouta, spnchoutj)    as 0 + CHS1-01-EXP (RP5C01 + RP5H01 protection)
+//    2  Arm Wrestling      (armwrest)                          as 0, different VIDEO / BAK maps (+ fg tilemap)
 //  Every variant: Z80 4 MHz (8 MHz / 2), RP2A03 (21.47727 MHz, CPU / 12), VLM5030 (21.47727 MHz / 6),
 //  TWO monitors driven at once from ONE timing chain (20.16 MHz xtal, 5.04 MHz dot clock; schematic facts note).
-//  Display presentation of the two screens: OPEN (user decision after bring-up).
+//  The two screens are placed by rtl/punchout_layout.sv (Game Options Screen Layout).
 //
-//  Clock: CLK_SYS = 40.32 MHz (2 x 20.16 MHz; user, 2026-10-27): 8 CLK_SYS per pixel, exact Z80 / RP2A03 enables.
+//  Clock: CLK_SYS = 40.32 MHz (2 x 20.16 MHz): 8 CLK_SYS per pixel, exact Z80 / RP2A03 enables.
 //
 //============================================================================
 
-module punchout_board
+module punchout_dispatcher
 (
     input  logic        clk,            // CLK_SYS
     input  logic        reset,
@@ -112,24 +112,9 @@ T65 t65_0
 assign t65_0_o.a = t65_0_a24[15:0];
 
 // VLM5030: vlm5030_0: every board's speech chip (CPU board 6M, ROM 6P). Our model, rtl/sound/vlm5030_lpc.sv (MAME
-// vlm5030.cpp port, user 2026-10-27); the jotego gate-level VHDL stays out of the build (files.qip lines commented).
+// vlm5030.cpp port).
 chip_pool_pkg::vlm5030_i_t vlm5030_0_i;
 chip_pool_pkg::vlm5030_o_t vlm5030_0_o;
-// VLM-2026-10-27: jt vlm5030_gl instance commented out below (no own model yet)
-// `ifndef VERILATOR
-// /* verilator lint_off PINCONNECTEMPTY */
-// vlm5030_gl vlm5030_0
-// (
-//     .i_clk(clk), .i_oscen(vlm5030_0_i.oscen), .i_rst(vlm5030_0_i.rst), .i_start(vlm5030_0_i.start),
-//     .i_vcu(vlm5030_0_i.vcu), .i_tst1(1'b0), .o_tst2(), .o_tst4(), .i_d(vlm5030_0_i.d), .o_a(vlm5030_0_o.a),
-//     .o_me_l(vlm5030_0_o.me_l), .o_mte(vlm5030_0_o.mte), .o_bsy(vlm5030_0_o.bsy), .o_dao(vlm5030_0_o.dao),
-//     .o_audio(vlm5030_0_o.audio)
-// );
-// /* verilator lint_on PINCONNECTEMPTY */
-// `else
-// VLMPORT-2026-10-27: idle stand-in commented out below, replaced by vlm5030_lpc
-// assign vlm5030_0_o = '{a: 16'h0000, me_l: 1'b1, mte: 1'b0, bsy: 1'b0, dao: 6'd0, audio: 10'd0};
-// `endif
 vlm5030_lpc vlm5030_0
 (
     .clk(clk), .reset(reset), .i_oscen(vlm5030_0_i.oscen), .i_rst(vlm5030_0_i.rst), .i_start(vlm5030_0_i.start),
@@ -300,8 +285,6 @@ chp1_board chp1
 );
 
 /* verilator lint_off UNUSED */
-// VLMPORT-2026-10-27: original:
-// wire unused_ok = &{1'b0, game_flags2, rom_rgn, t65_0_a24[23:16], vlm5030_0_i, ioctl_addr[24:18], rom_page};
 wire unused_ok = &{1'b0, game_flags2, rom_rgn, t65_0_a24[23:16], ioctl_addr[24:18], rom_page};
 /* verilator lint_on UNUSED */
 

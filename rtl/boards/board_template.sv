@@ -3,7 +3,7 @@
 //  Copyright (C) 2026 Rodimus
 //
 //  Boards never instantiate a CPU, sound chip, ROM store or board RAM. They live ONCE in the dispatcher
-//  rtl/punchout_board.sv: Z80 z80pa_0, RP2A03's 6502 t65_0, VLM5030 vlm5030_0 (chip_pool_pkg buses), the shared ROM
+//  rtl/punchout_dispatcher.sv: Z80 z80pa_0, RP2A03's 6502 t65_0, VLM5030 vlm5030_0 (chip_pool_pkg buses), the shared ROM
 //  blocks (rom0_bk0-2 packed store, ports rom0_* / rom0b_*; rom1 colour PROMs, ports rom1_* / rom1b_*) and the seven
 //  board RAM pool blocks (ram_pool_pkg; map in the dispatcher's "Shared RAM pool" section: 0 Z80 work 2K, 1 battery 1K,
 //  2 top bg 2K, 3 bottom maps 4K, 4 big sprite 1 2K, 5 big sprite 2 2K, 6 RP2A03 RAM 2K). The two screens run at

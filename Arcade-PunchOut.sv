@@ -4,8 +4,8 @@
 //  Copyright (C) 2026 Rodimus
 //
 //  Top level carried over from the Rodimus Nintendo / Irem1 cores (Pac-Man core lineage, MikeJ / Sorgelig).
-//  Board: rtl/punchout_board.sv (pools) + rtl/boards/chp1/ (CPU board, VIDEO / BAK boards). Bring-up 2026-10-27:
-//  Punch-Out!! (variant 0); battery RAM saved on index 4 (no hiscore module: the game keeps its own table).
+//  Board: rtl/punchout_dispatcher.sv (pools) + rtl/boards/chp1/ (CPU board, VIDEO / BAK boards). Battery RAM saved on
+//  index 4 (no hiscore module: the game keeps its own table).
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a
 //  copy of this software and associated documentation files (the "Software"),
@@ -82,7 +82,7 @@ assign BUTTONS = 0;
 ///////////////////////////////////////////////////
 
 // MRA index 1 (tools/gen_mra.py):
-//   byte 0       board variant (see rtl/punchout_board.sv)
+//   byte 0       board variant (see rtl/punchout_dispatcher.sv)
 //   byte 1       flags: [0] 4-way joystick, [2] coins are 2-frame pulses, [4] vertical, [7] vertical is ROT90
 //   byte 2       CPU ROM decode (none in punchout.cpp, always 0)
 //   byte 3       board flags (none yet)
@@ -92,7 +92,7 @@ assign BUTTONS = 0;
 //   bytes 64-111 ROM region table, 8 slots x {base, start, len} (u16 LE, 256-byte units)
 //   byte 112     ROMREGION_INVERT slot mask (the board inverts those regions on read; never at load)
 //   bytes 128-383 ROM page map: slot n at 128 + 32n, store page (8K) of region page k, FF = empty socket
-//               (rtl/punchout_board.sv, Shared ROM blocks)
+//               (rtl/punchout_dispatcher.sv, Shared ROM blocks)
 // Only DIP ports go in the MRA switch bytes: Main_MiSTer builds the default as int shifts, so a byte >= 0x80 at
 // position 3 sign-extends over bytes 4-7, and bytes 4+ are shifted by 32+ (mra_loader.cpp: binary[i] << (i * 8))
 // ioctl: 0 ROMs, 1 config, 3 hiscore config (reserved fleet-wide, unused: NVRAM game), 4 battery RAM (MRA
@@ -132,9 +132,6 @@ wire vert_view = game_vert & ~status[12];
 
 wire [1:0] ar = status[9:8];
 
-// LAYOUT-STEP2-2026-10-27: Original = the layout's picture aspect while its framebuffer is shown; original:
-// assign VIDEO_ARX = (!ar) ? (vert_view ? 12'd3 : 12'd4) : (ar - 1'd1);
-// assign VIDEO_ARY = (!ar) ? (vert_view ? 12'd4 : 12'd3) : 12'd0;
 wire        lay_fb_en;
 wire [11:0] lay_ar_x, lay_ar_y;
 assign VIDEO_ARX = (!ar) ? (lay_fb_en ? lay_ar_x : vert_view ? 12'd3 : 12'd4) : (ar - 1'd1);
@@ -145,7 +142,7 @@ assign VIDEO_ARY = (!ar) ? (lay_fb_en ? lay_ar_y : vert_view ? 12'd4 : 12'd3) : 
 // ioctl address, FB / DDRAM muxed with screen_rotate (Irem1's Arcade-Irem1.sv is the wiring reference).
 wire art_avail = 1'b0;
 
-// Status bits: as the Nintendo / Irem1 cores, except ONE Flip Screen (fleet convention 2026-10-25) at the CRT Flip
+// Status bits: as the Nintendo / Irem1 cores, except ONE Flip Screen (fleet convention) at the CRT Flip
 // bit 22: it drives the board's own 180-degree mirror (both outputs); the old HDMI Flip bit 11 is left unused.
 `include "build_id.v"
 localparam CONF_STR = {
@@ -157,11 +154,7 @@ localparam CONF_STR = {
 	"P1O[40:37],H Position (CRT),0,+1,+2,+3,+4,+5,+6,+7,-8,-7,-6,-5,-4,-3,-2,-1;",
 	"P1O[44:41],V Position (CRT),0,+1,+2,+3,+4,+5,+6,+7,-8,-7,-6,-5,-4,-3,-2,-1;",
 	"P1OGI,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
-	// DISPLAY-TEMP-2026-10-27: bring-up only, until the two-screen presentation is designed
-	// LAYOUT-STEP1-2026-10-27: replaced by Game Options "Screen Layout" (rtl/punchout_layout.sv); original:
-	// "P1OS,Screen (bring-up),Bottom,Top;",
 	"-;",
-	// LAYOUT-STEP1-2026-10-27: Game Options shown (was "H1P2,Game Options;" / "H1-;", hidden until artwork)
 	"P2,Game Options;",
 	"P2O[47:45],Screen Layout,Vert. Top/Bottom,Horz. Top|Bottom,Horz. Bottom|Top,Vert. Bottom/Top,Single Top,Single Bottom,Split Top>HDMI,Split Top>CRT;",
 	"P2O[62:59],Speech Volume,Default,+1,+2,+3,+4,+5,+6,+7,Off,-7,-6,-5,-4,-3,-2,-1;",
@@ -171,9 +164,6 @@ localparam CONF_STR = {
 	"P3OJ,Pause when OSD is open,On,Off;",
 	"P3OK,Dim video after 10s,On,Off;",
 	"-;",
-	// NVRAM-2026-10-27: battery RAM game, no hiscore module (Gottlieb's item); originals below
-	// "P4,High Score Options;",
-	// "P4OL,Autosave Hiscores,Off,On;",
 	"OR,Autosave NVRAM,On,Off;",
 	"-;",
 	"DIP;",
@@ -220,7 +210,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 
 ////////////////////   CLOCKS   ///////////////////
 
-// pll: CLK_SYS = 40.32 MHz = 2 x the 20.16 MHz video xtal (CLK-2026-10-27, rtl/pll/pll_0002.v): 8 clocks per
+// pll: CLK_SYS = 40.32 MHz = 2 x the 20.16 MHz video xtal (rtl/pll/pll_0002.v): 8 clocks per
 // 5.04 MHz pixel; Z80 4 MHz and RP2A03 1.789773 MHz enables are exact fractions (rtl/boards/chp1/chp1_board.sv).
 pll pll
 (
@@ -285,13 +275,11 @@ ctl_stick_dirs #(.MODE(0), .THRESH(7'd48)) rstick_0(.stick(joystick_r_analog_0),
 ctl_stick_dirs #(.MODE(0), .THRESH(7'd48)) rstick_1(.stick(joystick_r_analog_1), .dir(rstick1));
 
 // control ids 0-35 = ctl_ids (pad 2's Start = Start 2P only; pads never linked), 36-45 core-local (Irem1 numbering),
-// 46 core-local: P1 Btn 1 or Start 1P (Punch-Out reads only IN0 bits 0-3, so "PRESS START" = a punch; user
-// 2026-10-27: Start also throws L Blow, so pads don't look broken). Same pad only.
+// 46 core-local: P1 Btn 1 or Start 1P (Punch-Out reads only IN0 bits 0-3, so "PRESS START" = a punch; Start
+// also throws L Blow, so pads don't look broken). Same pad only.
 wire [35:0] ctl36;
-// BTNSWAP-2026-10-27: pad A / B swapped (bits 4 / 5) so B, the left face button, throws the Left Blow and A the
-// Right Blow (user, on HW); MRA / CONF_STR mapping unchanged. Original:
-// ctl_ids ids(.joy0(joystick_0), .joy1(joystick_1), .kb(kb), .dir1(dir1), .dir2(dir2),
-//             .coin1(coin1), .coin2(coin2), .coin3(1'b0), .ctl(ctl36));
+// pad A / B swapped (bits 4 / 5) so B, the left face button, throws the Left Blow and A the
+// Right Blow (user, on HW); MRA / CONF_STR mapping unchanged.
 wire [15:0] joy0_ab = {joystick_0[15:6], joystick_0[4], joystick_0[5], joystick_0[3:0]};
 wire [15:0] joy1_ab = {joystick_1[15:6], joystick_1[4], joystick_1[5], joystick_1[3:0]};
 ctl_ids ids(.joy0(joy0_ab), .joy1(joy1_ab), .kb(kb), .dir1(dir1), .dir2(dir2),
@@ -346,13 +334,11 @@ ctl_port_map #(.NP(6), .IDW(6), .BASE_MODE(1)) port_map
 
 // PAUSE SYSTEM (CLKSPD = the real CLK_SYS in MHz, for the 10 s dim timer)
 wire [23:0] rgb_out;
-// pause #(8,8,8,49) pause      // CLK-2026-10-27: original (49.152 MHz)
 pause #(8,8,8,40) pause
 (
 	.*,
 	.clk_sys(CLK_SYS),
 	.user_button(m_pause),
-	// .pause_request(hs_pause),   // NVRAM-2026-10-27: original (hiscore module)
 	.pause_request(1'b0),
 	.options(~status[20:19])
 );
@@ -364,17 +350,8 @@ wire [7:0] r, g, b;
 wire ce_pix;
 wire [7:0] top_r, top_g, top_b, bot_r, bot_g, bot_b;
 
-// TWO screens, one timing chain (schematic facts). Which screen(s) reach HDMI / analog and how is an OPEN question
-// (user decision after bring-up).
-// DISPLAY-TEMP-2026-10-27: OSD "Screen (bring-up)" picks one monitor; original placeholder below
-// assign {r, g, b} = {bot_r, bot_g, bot_b};
-// LAYOUT-STEP1-2026-10-27: Game Options "Screen Layout" (rtl/punchout_layout.sv); original:
-// assign {r, g, b} = status[28] ? {top_r, top_g, top_b} : {bot_r, bot_g, bot_b};
+// TWO screens, one timing chain (schematic facts); rtl/punchout_layout.sv places them (Game Options Screen Layout).
 // Native stream = the CRT's picture (pause dims it); the framebuffer = HDMI's, dimmed by the layout module.
-// LAYOUT-STEP3-2026-10-27: the dim moved into rtl/punchout_layout.sv (dim_video now driven: qsf PAUSE_OUTPUT_DIM);
-// step 1 (dimmed copies here, never passed on) was:
-// wire [23:0] top_d = dim_video ? {1'b0, top_r[7:1], 1'b0, top_g[7:1], 1'b0, top_b[7:1]} : {top_r, top_g, top_b};
-// wire [23:0] bot_d = dim_video ? {1'b0, bot_r[7:1], 1'b0, bot_g[7:1], 1'b0, bot_b[7:1]} : {bot_r, bot_g, bot_b};
 wire        dim_video;                 // pause: video dimmed after 10 s of pause
 wire [23:0] nat_rgb;
 wire        nat_ce, nat_hs, nat_vs, nat_hb, nat_vb, nat31;
@@ -390,8 +367,7 @@ punchout_layout layout
 	.clk(CLK_SYS), .layout(status[47:45]), .direct_video(direct_video), .dim(dim_video),
 	.ce_pix(ce_pix), .hs_in(hs), .vs_in(vs), .hblank_in(hblank), .vblank_in(vblank),
 	.top_rgb({top_r, top_g, top_b}), .bot_rgb({bot_r, bot_g, bot_b}),
-	// LAYOUT-STEP3-2026-10-27: native timing from the layout (Horz. 2x pixel rate, Vert. 31 kHz); step 1 was:
-	// .ce_out(), .hs_out(), .vs_out(), .hblank_out(), .vblank_out(), .rgb_out(nat_rgb),   // step 1: timing unchanged
+	// native timing from the layout (Horz. 2x pixel rate, Vert. 31 kHz)
 	.ce_out(nat_ce), .hs_out(nat_hs), .vs_out(nat_vs), .hblank_out(nat_hb), .vblank_out(nat_vb), .rgb_out(nat_rgb),
 	.nat31(nat31),
 	.fb_en(lay_fb_en), .fb_w(lay_fb_w), .fb_h(lay_fb_h), .ar_x(lay_ar_x), .ar_y(lay_ar_y), .fb_base(lay_fb_base), .fb_vbl(FB_VBL),
@@ -404,8 +380,6 @@ assign {r, g, b} = nat_rgb;
 wire rotate_ccw = ~game_flags[7];  // ROT270 sets rotate CCW, ROT90 sets CW
 wire no_rotate  = ~game_vert | status[12] | direct_video;
 wire flip       = 1'b0;            // Flip Screen = the board's CRT Flip mechanism (status[22]), not screen_rotate
-// LAYOUT-STEP1-2026-10-27: screen_rotate's FB / DDRAM shared with the layout framebuffer (Irem1's wiring); original:
-// screen_rotate screen_rotate(.*);
 wire        sr_fb_en, sr_clk, sr_rd, sr_we;
 wire  [4:0] sr_fb_format;
 wire [11:0] sr_fb_w, sr_fb_h;
@@ -437,22 +411,8 @@ assign DDRAM_BE       = sr_fb_en ? sr_be : lay_be;
 assign DDRAM_WE       = sr_fb_en ? sr_we : lay_we;
 assign DDRAM_RD       = sr_fb_en ? sr_rd : lay_rd;
 
-// LAYOUT-STEP3-2026-10-27: the layout's native stream (512-pixel Horz. lines: WIDTH 512; Vert. is already 31 kHz, so
-// no scandoubler / fx there); original:
-// arcade_video #(256,24) arcade_video
-// (
-// 	.*,
-//
-// 	.clk_video(CLK_SYS),
-//
-// 	.RGB_in(rgb_out),
-// 	.HBlank(hblank),
-// 	.VBlank(vblank),
-// 	.HSync(hs),
-// 	.VSync(vs),
-//
-// 	.fx(status[18:16])
-// );
+// the layout's native stream (512-pixel Horz. lines: WIDTH 512; Vert. is already 31 kHz, so
+// no scandoubler / fx there)
 arcade_video #(512,24) arcade_video
 (
 	.*,
@@ -472,7 +432,7 @@ arcade_video #(512,24) arcade_video
 
 ///////////////                 Board                  ////////////////
 
-punchout_board board
+punchout_dispatcher board
 (
 	.clk(CLK_SYS),
 	.reset(reset),
@@ -509,7 +469,7 @@ punchout_board board
 	.video_vblank(vblank),
 
 	.audio(audio),
-	// LAYOUT-STEP1-2026-10-27: Game Options volumes (Exidy form: OSD value ^ 8 = gain in eighths, Default = 8)
+	// Game Options volumes (Exidy form: OSD value ^ 8 = gain in eighths, Default = 8)
 	.vol_speech(status[62:59] ^ 4'd8),
 	.vol_music(status[66:63] ^ 4'd8),
 
@@ -522,37 +482,6 @@ punchout_board board
 
 assign ioctl_upload_req = ~status[27] & ~ioctl_download;
 
-// NVRAM-2026-10-27: hiscore module commented out below. Punch-Out keeps its own score table in the battery RAM
-// (C000-C3FF), saved whole on index 4 (user, 2026-10-27: NVRAM only, no hiscore).
-// // Hiscore: config = MRA index 3, dump = index 4 (hiscore.dat: punchout D660, spnchout D5C0 = work RAM).
-// wire [15:0] hs_address;
-// wire  [7:0] hs_data_in;
-// wire  [7:0] hs_data_out;
-// wire        hs_write_enable;
-// wire        hs_access_read;
-// wire        hs_access_write;
-// wire        hs_pause;
-// wire        hs_configured;
-//
-// hiscore #(
-// 	.HS_ADDRESSWIDTH(16),
-// 	.CFG_ADDRESSWIDTH(4),
-// 	.CFG_LENGTHWIDTH(2)
-// ) hi (
-// 	.*,
-// 	.clk(CLK_SYS),
-// 	.paused(pause_cpu),
-// 	.autosave(status[21]),
-// 	.ram_address(hs_address),
-// 	.data_from_ram(hs_data_out),
-// 	.data_to_ram(hs_data_in),
-// 	.data_from_hps(ioctl_dout),
-// 	.data_to_hps(ioctl_din),
-// 	.ram_write(hs_write_enable),
-// 	.ram_intent_read(hs_access_read),
-// 	.ram_intent_write(hs_access_write),
-// 	.pause_cpu(hs_pause),
-// 	.configured(hs_configured)
-// );
+// No hiscore module: Punch-Out keeps its own score table in the battery RAM (C000-C3FF), saved whole on index 4.
 
 endmodule
