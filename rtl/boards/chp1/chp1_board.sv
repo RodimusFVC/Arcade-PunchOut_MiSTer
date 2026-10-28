@@ -261,7 +261,7 @@ always_ff @(posedge clk) begin
     else              zdi <= 8'hFF;
 end
 
-assign z80_i = '{reset_n: 1'b1, cen_p: z_cen_p, cen_n: z_cen_n, wait_n: 1'b1, int_n: 1'b1, nmi_n: ~nmi, di: zdi};
+assign z80_i = '{reset_n: 1'b1, cen_p: z_cen_p, cen_n: z_cen_n, wait_n: 1'b1, int_n: 1'b1, nmi_n: ~nmi, busrq_n: 1'b1, di: zdi};
 
 /////////////////////////////  RP2A03 (sound board part of the CPU board)  /////////////////////////////
 

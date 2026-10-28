@@ -93,7 +93,7 @@ assign z80pa_0_o.a = z80pa_0_a;           assign z80pa_0_o.dout = z80pa_0_do;
 assign z80pa_0_o.m1_n = z80pa_0_m1_n;     assign z80pa_0_o.mreq_n = z80pa_0_mreq_n; assign z80pa_0_o.iorq_n = z80pa_0_iorq_n;
 assign z80pa_0_o.rd_n = z80pa_0_rd_n;     assign z80pa_0_o.wr_n = z80pa_0_wr_n;     assign z80pa_0_o.rfsh_n = z80pa_0_rfsh_n;
 
-// RP2A03 6502 core (T65, Mode 00, BCD_en 0; Nintendo core's T65 lineage with the BCD_en input):
+// RP2A03 6502 core (stock T65, Mode 00):
 // t65_0: every board's sound CPU (CPU board 4H; the 4F second 2A03 footprint is unpopulated). The RP2A03 glue + APU
 // (rtl/sound/rp2a03.sv, rp2a03_apu.sv, Nintendo core) sit on the board, as in the Nintendo core.
 chip_pool_pkg::t65_i_t t65_0_i;
@@ -103,7 +103,7 @@ wire [23:0] t65_0_a24;
 /* verilator lint_off PINCONNECTEMPTY */
 T65 t65_0
 (
-    .Mode(2'b00), .BCD_en(1'b0), .Res_n(t65_0_i.res_n), .Enable(t65_0_i.enable), .Clk(clk), .Rdy(t65_0_i.rdy),
+    .Mode(2'b00), .Res_n(t65_0_i.res_n), .Enable(t65_0_i.enable), .Clk(clk), .Rdy(t65_0_i.rdy),
     .Abort_n(1'b1), .IRQ_n(t65_0_i.irq_n), .NMI_n(t65_0_i.nmi_n), .SO_n(1'b1), .R_W_n(t65_0_o.rw), .Sync(), .EF(),
     .MF(), .XF(), .ML_n(), .VP_n(), .VDA(), .VPA(), .A(t65_0_a24), .DI(t65_0_i.di), .DO(t65_0_o.dout), .Regs(),
     .NMI_ack()

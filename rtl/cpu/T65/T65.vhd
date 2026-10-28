@@ -43,8 +43,6 @@
 --     NOPAX   (nop + word da  ...  da:  byte 0)
 --     ASOZ    (byte $07 + byte 172)
 --
--- Nintendo core 2026-10-23: BCD_en input (decimal mode off for the RP2A03)
---
 -- Ver 303,302 WoS April 2014
 --     Bugfixes for NMI from foft
 --     Bugfix for BRK command (and its special flag)
@@ -136,7 +134,6 @@ library IEEE;
 entity T65 is
   port(
     Mode    : in  std_logic_vector(1 downto 0);      -- "00" => 6502, "01" => 65C02, "10" => 65C816
-    BCD_en  : in  std_logic := '1';                  -- '0' => no decimal mode (RP2A03)
     Res_n   : in  std_logic;
     Enable  : in  std_logic;
     Clk     : in  std_logic;
@@ -312,7 +309,6 @@ begin
   alu : entity work.T65_ALU
     port map(
       Mode => Mode_r,
-      BCD_en => BCD_en,
       Op => ALU_Op_r,
       BusA => BusA_r,
       BusB => BusB,

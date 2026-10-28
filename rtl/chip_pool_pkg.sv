@@ -108,11 +108,17 @@ typedef struct packed {
     logic  [9:0] sound;                 // jt49 internal A+B+C mix (registered per accumulator cycle)
 } ay_o_t;
 
-// 8039 (T48 t8039_notri_extrom, EA low, program on pmem; T0 / T1 low, P1 / P2 inputs high)
+// 8035 / 8039 (T48 t8039_notri_extrom, EA low, program on pmem). Superset of every core's pins: a core that doesn't use
+// reset_n / T0 / T1 / the port inputs / the MOVX bus ties those pins in its dispatcher and leaves the fields undriven.
 typedef struct packed {
+    logic        reset_n;
     logic        xtal_en;
     logic        int_n;
-    logic  [7:0] db;
+    logic        t0;
+    logic        t1;
+    logic  [7:0] p1_in;
+    logic  [7:0] p2_in;
+    logic  [7:0] db;                    // MOVX read data
     logic  [7:0] pmem_d;
 } mcs48_i_t;
 
@@ -121,9 +127,14 @@ typedef struct packed {
     logic  [7:0] p2;
     logic [11:0] pmem_a;
     logic        rd_n;
+    logic        wr_n;
+    logic        ale;
+    logic  [7:0] db;                    // address (at ALE) / MOVX write data
 } mcs48_o_t;
 
-// Z80 (T80pa, Mode 0; BUSRQ_n inactive). RESET_n is on the bus: Lady Bug / 8203 hold their CPUs in reset ~48 ms past the core reset
+// Z80 (T80pa, Mode 0). Superset of every core's pins: a core without a DMA ties BUSRQ_n high in its dispatcher and leaves
+// busrq_n / busak_n undriven; inte = IFF1 (T80pa REG bit 210: the 8080's INTE pin for an 8080 board). RESET_n is on the bus:
+// Lady Bug / 8203 hold their CPUs in reset ~48 ms past the core reset
 typedef struct packed {
     logic        reset_n;
     logic        cen_p;
@@ -131,6 +142,7 @@ typedef struct packed {
     logic        wait_n;
     logic        int_n;
     logic        nmi_n;
+    logic        busrq_n;
     logic  [7:0] di;
 } z80pa_i_t;
 
@@ -143,6 +155,8 @@ typedef struct packed {
     logic        rd_n;
     logic        wr_n;
     logic        rfsh_n;
+    logic        busak_n;
+    logic        inte;                    // IFF1 (an 8080 board's INTE pin)
 } z80pa_o_t;
 
 // SN76489 (jt89, INTERPOL16 0, MODE 0). rst is on the bus: Lady Bug resets its pair on power-on only
@@ -225,7 +239,7 @@ typedef struct packed {
     logic        intack;
 } s2650_o_t;
 
-// 6502 (T65, Mode 00, BCD_en 0 = the RP2A03's core). Enable = one CPU cycle. res_n on the bus: Punch-Out's main
+// 6502 (stock T65, Mode 00). Enable = one CPU cycle. res_n on the bus: Punch-Out's main
 // latch Q3 resets the RP2A03. Verbatim copy of Arcade-Nintendo's t65_i_t / t65_o_t (its NEW types, not merged yet).
 typedef struct packed {
     logic        res_n;
@@ -1116,5 +1130,87 @@ typedef struct packed {
     logic        star;
     logic  [5:0] color;         // BBGGRR
 } namco_05xx_o_t;
+
+// Intel 8257 DMA controller (rtl/cpu/i8257.sv, ours). Field names = the module's ports.
+typedef struct packed {
+    logic        reset;
+    logic        ce;
+    logic        rev_rw;
+    logic        cs;
+    logic  [3:0] a;
+    logic        wr;
+    logic        rd;
+    logic  [7:0] din;
+    logic  [3:0] drq;
+    logic        hlda;
+    logic  [7:0] mem_d;
+    logic  [7:0] io_d;
+} i8257_i_t;
+
+typedef struct packed {
+    logic  [7:0] dout;
+    logic        hrq;
+    logic [15:0] addr;
+    logic  [1:0] chan;
+    logic        busy;
+    logic        ior;
+    logic        iow;
+    logic        memr;
+    logic        memw;
+    logic  [7:0] data;
+} i8257_o_t;
+
+// Zilog Z80 DMA (rtl/cpu/z80dma.sv, ours). Field names = the module's ports.
+typedef struct packed {
+    logic        reset;
+    logic        cen_p;
+    logic        cs;
+    logic        wr;
+    logic        rd;
+    logic  [7:0] din;
+    logic        rdy;
+    logic        bai;
+    logic  [7:0] bus_d;
+} z80dma_i_t;
+
+typedef struct packed {
+    logic  [7:0] dout;
+    logic        busrq;
+    logic        busy;
+    logic [15:0] addr;
+    logic        mreq;
+    logic        iorq;
+    logic        memr;
+    logic        memw_s;
+    logic  [7:0] data;
+} z80dma_o_t;
+
+// TI SN76477 complex sound generator (rtl/sound/sn76477.sv, ours). Field names = the module's ports; the analog
+// part values arrive as per-sample steps (Q24 volts), so one instance serves any board's parts.
+typedef struct packed {
+    logic        reset;
+    logic        step;
+    logic        enable;
+    logic        vco_sel;
+    logic  [2:0] mixer;
+    logic  [1:0] env;
+    logic [31:0] vco_v;
+    logic [31:0] os_c;
+    logic [31:0] os_d;
+    logic [31:0] slf_c;
+    logic [31:0] slf_d;
+    logic [31:0] vco_c;
+    logic [31:0] vco_d;
+    logic [31:0] nf_c;
+    logic [31:0] nf_d;
+    logic [31:0] ad_c;
+    logic [31:0] ad_d;
+    logic [31:0] noise_f;
+    logic [31:0] fs;
+} sn76477_i_t;
+
+typedef struct packed {
+    logic [31:0] vout;
+} sn76477_o_t;
 
 endpackage
