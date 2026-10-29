@@ -1,43 +1,25 @@
-//============================================================================
-//
-//  Sanyo VLM5030 LPC speech synthesizer
 //  Copyright (C) 2026 Rodimus
-//
 //  Port of MAME src/devices/sound/vlm5030.cpp (BSD-3-Clause, Tatsuyuki Satoh) with the VLM5030 tables of
-//  tms5110r.hxx (decap: ogoun / John McMaster). Behaviour follows MAME sample for sample: one output sample per
-//  440 OSC cycles (8136 Hz at 3.579545 MHz), MAME's interpolation (C integer division, truncating), its 10-stage
-//  lattice with the same truncation, its phase / BSY handling, and its quirks (the first frame of an utterance
-//  still interpolates the previous utterance's last parameters; the lattice state is never cleared by START).
-//  Not MAME: unvoiced excitation uses a 17-bit LFSR (MAME: machine().rand()), so unvoiced frames differ in detail.
-//
-//  Timing: i_oscen = the chip's 3.579545 MHz OSC (clk >= 2x). A sample is computed in a short burst of clk cycles
-//  after its OSC tick; pin edges (RST / START) are taken between samples, ROM reads in that burst.
-//  ROM: o_a + o_me_l = 0 (MAME /ME); i_d is sampled 3 OSC ticks after o_a is set, so the board must deliver the
-//  ROM byte on i_d within 2 OSC periods while o_me_l = 0, and the 6L data latch while o_me_l = 1 (one bus, as on
-//  the PCB). One 10x24 multiplier, time-multiplexed over the 19 lattice products.
-//
-//============================================================================
 
+//  ROM data is sampled 3 OSC ticks after o_a is set
 module vlm5030_lpc
 (
     input  logic        clk,
-    input  logic        reset,          // core reset (MAME device_reset at machine start)
-    input  logic        i_oscen,        // 3.579545 MHz OSC enable
-    input  logic        i_rst,          // RST: rise while BSY = chip reset, fall = latch the parameter byte
-    input  logic        i_start,        // START: rise = BSY on, fall = start speech (or latch A15-A8 with VCU)
+    input  logic        reset,
+    input  logic        i_oscen,
+    input  logic        i_rst,
+    input  logic        i_start,
     input  logic        i_vcu,
-    input  logic  [7:0] i_d,            // data latch (o_me_l = 1) / speech ROM (o_me_l = 0)
+    input  logic  [7:0] i_d,
     output logic [15:0] o_a,
     output logic        o_me_l,
     output logic        o_mte,
     output logic        o_bsy,
-    output logic  [5:0] o_dao,          // unsigned view of the sample (no PWM)
-    output logic signed [9:0] o_audio   // MAME put_int_clamp(u0, 512)
+    output logic  [5:0] o_dao,
+    output logic signed [9:0] o_audio
 );
 
-localparam int W = 24;                  // lattice width (MAME: int); sim flags anything past 2^22
-
-/////////////////////////////  Coefficient tables (tms5110r.hxx vlm5030_coeff)  /////////////////////////////
+localparam int W = 24;
 
 function automatic logic [6:0] etab(input logic [4:0] i);
     case (i)
@@ -65,7 +47,6 @@ function automatic logic [6:0] ptab(input logic [4:0] i);
     endcase
 endfunction
 
-// K1 (6-bit index)
 function automatic logic signed [9:0] k1tab(input logic [5:0] i);
     case (i)
         6'd0:  k1tab = 10'sd390;  6'd1:  k1tab = 10'sd403;  6'd2:  k1tab = 10'sd414;  6'd3:  k1tab = 10'sd425;
@@ -87,7 +68,6 @@ function automatic logic signed [9:0] k1tab(input logic [5:0] i);
     endcase
 endfunction
 
-// K2 (5-bit index; entry 16 is 0 in MAME's table, see tms5110r.hxx)
 function automatic logic signed [9:0] k2tab(input logic [4:0] i);
     case (i)
         5'd0:  k2tab = 10'sd0;    5'd1:  k2tab = 10'sd50;   5'd2:  k2tab = 10'sd100;  5'd3:  k2tab = 10'sd149;
@@ -101,7 +81,6 @@ function automatic logic signed [9:0] k2tab(input logic [4:0] i);
     endcase
 endfunction
 
-// MAME integer interpolation: o + (t - o) * ie / 4, C division (truncates toward zero); ie = 1..4
 function automatic logic signed [10:0] lerp(input logic signed [10:0] o, input logic signed [10:0] t, input logic [2:0] ie);
     logic signed [13:0] d, m;
     d = 14'(t) - 14'(o);
@@ -114,14 +93,11 @@ function automatic logic signed [10:0] lerp(input logic signed [10:0] o, input l
     lerp = o + 11'((m < 0 ? m + 14'sd3 : m) >>> 2);
 endfunction
 
-// C (p / 512) for the lattice products
 function automatic logic signed [W-1:0] div512(input logic signed [W+9:0] p);
     div512 = W'((p < 0 ? p + (W+10)'(511) : p) >>> 9);
 endfunction
 
-/////////////////////////////  State  /////////////////////////////
-
-localparam logic [1:0] PH_IDLE = 2'd0, PH_RUN = 2'd1, PH_STOP = 2'd2;   // IDLE also = MAME RESET / SETUP / WAIT
+localparam logic [1:0] PH_IDLE = 2'd0, PH_RUN = 2'd1, PH_STOP = 2'd2;
 
 typedef enum logic [3:0] {
     S_IDLE, S_RD, S_TBL0, S_TBL1, S_SAMP, S_CMD, S_FBYTE, S_DEC, S_STEP, S_EXC, S_FA, S_FB, S_FC, S_FD, S_OUT
@@ -129,16 +105,16 @@ typedef enum logic [3:0] {
 st_t         st = S_IDLE, rd_ret = S_IDLE;
 
 logic        pin_rst = 1'b0, pin_st = 1'b0;
-logic  [7:0] prm = 8'd0;                // MAME m_parameter
+logic  [7:0] prm = 8'd0;
 logic [15:0] addr = 16'd0;
-logic  [7:0] vh = 8'd0;                 // MAME m_vcu_addr_h (A15-A8; vh_v = nonzero)
+logic  [7:0] vh = 8'd0;
 logic        vh_v = 1'b0;
 logic  [1:0] phase = PH_IDLE;
 logic        bsy = 1'b0;
-logic  [5:0] sc = 6'd0;                 // sample_count
-logic  [9:0] ic = 10'd0;                // interp_count
-logic  [7:0] pc = 8'd0;                 // pitch_count
-logic  [2:0] ie = 3'd4;                 // interp_effect of the last interpolator step
+logic  [5:0] sc = 6'd0;
+logic  [9:0] ic = 10'd0;
+logic  [7:0] pc = 8'd0;
+logic  [2:0] ie = 3'd4;
 logic  [6:0] old_e = 7'd0, new_e = 7'd0;
 logic  [7:0] old_p = 8'd0, new_p = 8'd0;
 logic signed [9:0] old_k [10];
@@ -147,7 +123,7 @@ logic signed [W-1:0] x [10];
 logic signed [W-1:0] u = '0;
 logic signed [W+9:0] prod = '0;
 logic  [3:0] j = 4'd0;
-logic [47:0] fb = 48'd0;                // speech frame bits (6 bytes, little endian)
+logic [47:0] fb = 48'd0;
 logic  [2:0] bi = 3'd0;
 logic  [7:0] rdq = 8'd0;
 logic  [1:0] rd_wait = 2'd0;
@@ -158,7 +134,6 @@ logic [16:0] lfsr = 17'd1;
 
 initial for (int n = 0; n < 10; n++) begin old_k[n] = '0; new_k[n] = '0; x[n] = '0; end
 
-// parameter byte (MAME setup_parameter)
 wire  [2:0] istep = prm[1] ? 3'd4 : prm[0] ? 3'd2 : 3'd1;
 logic [5:0] fsize;
 always_comb
@@ -171,7 +146,6 @@ always_comb
     endcase
 wire signed [8:0] poff = prm[7] ? -9'sd8 : prm[6] ? 9'sd8 : 9'sd0;
 
-// current = old + (target - old) * ie / 4; target = old when the frame started at zero energy, else new
 wire        tgt_old = old_e == 7'd0;
 wire  [6:0] cur_e   = 7'(lerp(11'(old_e), tgt_old ? 11'd0 : 11'(new_e), ie));
 wire  [7:0] cur_p   = (old_p > 8'd1) ? 8'(lerp(11'(old_p), tgt_old ? 11'(old_p) : 11'(new_p), ie)) : old_p;
@@ -180,15 +154,12 @@ wire signed [9:0] kc = 10'(lerp(11'(old_k[j]), tgt_old ? 11'(old_k[j]) : 11'(new
 wire  [9:0] ic_nx = ic - 10'(istep);
 wire  [8:0] pc_nx = {1'b0, pc} + 9'd1;
 
-// MAME get_bits(sbit, bits) on the 6-byte frame
 wire  [4:0] f_p  = fb[5:1];
 wire  [4:0] f_e  = fb[10:6];
 wire  [7:0] f_p8 = {1'b0, ptab(f_p)};
 
-/////////////////////////////  Sequencer  /////////////////////////////
-
 always_ff @(posedge clk) begin
-    if (i_oscen) begin                                  // sample tick every 440 OSC; held until the sequencer is idle
+    if (i_oscen) begin
         osc <= (osc == 9'd439) ? 9'd0 : osc + 9'd1;
         if (osc == 9'd439) tick <= 1'b1;
     end
@@ -202,34 +173,31 @@ always_ff @(posedge clk) begin
         S_IDLE:
             if (tick) begin
                 tick <= 1'b0;
-                // MAME sound_stream_update: only RUN / STOP produce samples; idle phases output 0 from the next sample
-                // period on (a START / RST mid-period keeps that period's sample, as MAME's stream does)
                 if (phase != PH_IDLE) st <= S_SAMP;
                 else                  o_audio <= 10'sd0;
             end else if (i_rst != pin_rst) begin
                 pin_rst <= i_rst;
-                if (!i_rst) prm <= i_d;                         // H -> L: setup_parameter(latch)
-                else if (bsy) begin                             // L -> H while BSY: device_reset
+                if (!i_rst) prm <= i_d;
+                else if (bsy) begin
                     addr <= 16'd0; vh_v <= 1'b0; phase <= PH_IDLE; bsy <= 1'b0; sc <= 6'd0; ic <= 10'd0; pc <= 8'd0;
                     old_e <= 7'd0; new_e <= 7'd0; old_p <= 8'd0; new_p <= 8'd0; prm <= 8'd0;
                     for (int n = 0; n < 10; n++) begin old_k[n] <= '0; new_k[n] <= '0; x[n] <= '0; end
                 end
             end else if (i_start != pin_st) begin
                 pin_st <= i_start;
-                if (i_start) begin                              // L -> H: setup, BSY on
+                if (i_start) begin
                     phase <= PH_IDLE; bsy <= 1'b1;
-                end else if (i_vcu) begin                       // H -> L with VCU: latch A15-A8
+                end else if (i_vcu) begin
                     vh <= i_d; vh_v <= 1'b1;
-                end else if (vh_v) begin                        // direct access: start at {A15-A8, latch}
+                end else if (vh_v) begin
                     addr <= {vh, i_d}; vh_v <= 1'b0;
                     sc <= fsize; ic <= 10'd4; phase <= PH_RUN;
-                end else begin                                  // indirect: phrase table at (d & FE) + (d & 1) * 256
+                end else begin
                     tbl <= {i_d[0], i_d[7:1], 1'b0};
                     o_a <= {7'd0, i_d[0], i_d[7:1], 1'b0}; o_me_l <= 1'b0; rd_wait <= 2'd2; rd_ret <= S_TBL0; st <= S_RD;
                 end
             end
 
-        // ROM read: i_d sampled on the third OSC tick after o_a was set
         S_RD:
             if (i_oscen) begin
                 if (rd_wait == 2'd0) begin rdq <= i_d; o_me_l <= 1'b1; st <= rd_ret; end
@@ -246,15 +214,14 @@ always_ff @(posedge clk) begin
             st <= S_IDLE;
         end
 
-        // one sample (MAME sound_stream_update loop body)
         S_SAMP:
             if (sc == 6'd0) begin
-                if (phase == PH_STOP) begin                     // end phase: BSY off, no sample
+                if (phase == PH_STOP) begin
                     phase <= PH_IDLE; bsy <= 1'b0; o_audio <= 10'sd0;
                     st <= S_IDLE;
                 end else begin
                     sc <= fsize;
-                    if (ic == 10'd0) begin                      // parse_frame
+                    if (ic == 10'd0) begin
                         old_e <= new_e; old_p <= new_p;
                         for (int n = 0; n < 10; n++) old_k[n] <= new_k[n];
                         o_a <= addr; o_me_l <= 1'b0; rd_wait <= 2'd2; rd_ret <= S_CMD; st <= S_RD;
@@ -265,7 +232,7 @@ always_ff @(posedge clk) begin
                 st <= S_EXC;
 
         S_CMD:
-            if (rdq[0]) begin                                   // extend frame: end of speech / silent frames
+            if (rdq[0]) begin
                 new_e <= 7'd0; new_p <= 8'd0;
                 for (int n = 0; n < 10; n++) new_k[n] <= '0;
                 addr <= addr + 16'd1;
@@ -302,17 +269,16 @@ always_ff @(posedge clk) begin
             st <= S_STEP;
         end
 
-        // next interpolator step (25 / 50 / 75 / 100 %)
         S_STEP: begin
             ic <= ic_nx;
             ie <= (ic_nx[1:0] == 2'd0) ? 3'd4 : 3'd4 - {1'b0, ic_nx[1:0]};
             st <= S_EXC;
         end
 
-        // excitation, then the lattice: u[i] = u[i+1] - (-k[i] * x[i]) / 512, x[i+1] = x[i] + (-k[i] * u[i]) / 512
         S_EXC: begin
             if (old_e == 7'd0)      u <= '0;
-            else if (old_p <= 8'd1) u <= lfsr[0] ? W'(cur_e) : -(W'(cur_e));   // Quartus 17: no unary minus straight onto a cast
+            else if (old_p <= 8'd1) u <= lfsr[0] ? W'(cur_e) : -(W'(cur_e));
+            // Quartus 17: no unary minus straight onto a cast
             else                    u <= (pc == 8'd0) ? W'(cur_e) : '0;
             j <= 4'd9;
             st <= S_FA;
@@ -346,7 +312,6 @@ assign o_mte = 1'b0;
 assign o_dao = {~o_audio[9], o_audio[8:4]};
 
 `ifdef VERILATOR
-// MAME's lattice runs in int; flag any value this W could not have held
 always_ff @(posedge clk)
     if (st == S_OUT && (u > W'(1 << 22) || u < -(W'(1 << 22)))) $display("vlm5030_lpc: lattice %0d past 2^22", u);
 `endif

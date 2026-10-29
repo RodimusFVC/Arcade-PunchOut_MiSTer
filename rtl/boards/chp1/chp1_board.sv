@@ -1,18 +1,5 @@
-//============================================================================
-//
-//  PunchOut: CHP1 CPU board (Z80 + RP2A03 + VLM5030) around the CHP1 video (rtl/boards/chp1/chp1_video.sv)
+//  Based on MAME punchout.cpp (Nicola Salmoria, BSD-3-Clause)
 //  Copyright (C) 2026 Rodimus
-//
-//  MAME nintendo/punchout.cpp (reference) + CHP1-02 schematic facts. Drives the dispatcher's pools only (never its
-//  own CPU / ROM / RAM). Variants: 0 Punch-Out!!, 1 Super Punch-Out!! (RP5C01 / RP5H01 at ports 05-07,
-//  rtl/boards/chp1/chs1_exp.sv), 2 Arm Wrestling (video maps in chp1_video.sv).
-//  Clock enables from CLK_SYS 40.32 MHz (= 2 x the 20.16 MHz video xtal):
-//    Z80 4 MHz (8 MHz xtal / 2): half-cycle ticks at 8 MHz = 40.32 x 25 / 126, exact
-//    RP2A03 CPU cycle 1.789773 MHz (21.47727 MHz / 12) = 40.32 x 125 / 2816, exact
-//  Speech (VLM5030): pooled rtl/sound/vlm5030_lpc.sv (MAME port); its ROM is read on ROM port B phase 7.
-//  Not modelled (MAME ignores them too): watchdog (LS161A 2A counting VB), Z80 BUSRQ from VB, latch Q1 / Q2 / Q7.
-//
-//============================================================================
 
 module chp1_board
 (
@@ -30,7 +17,6 @@ module chp1_board
     input  logic  [3:0] h_adj,
     input  logic  [3:0] v_adj,
 
-    // shared CPU / sound chip pool (chip_pool_pkg): the shared T80pa, T65 (RP2A03 core) and VLM5030
     output chip_pool_pkg::z80pa_i_t   z80pa_0_i,
     input  chip_pool_pkg::z80pa_o_t   z80pa_0_o,
     output chip_pool_pkg::t65_i_t     t65_0_i,
@@ -38,8 +24,6 @@ module chp1_board
     output chip_pool_pkg::vlm5030_i_t vlm5030_0_i,
     input  chip_pool_pkg::vlm5030_o_t vlm5030_0_o,
 
-    // shared ROM blocks: rom0 = packed store (region slot + region offset, d one clock later), port B = rom0_*,
-    // port A = rom0b_* (second reader); rom1 = colour PROMs, port B = rom1_* (bottom monitor), port A = rom1b_* (top)
     output logic  [2:0] rom0_slot,
     output logic [17:0] rom0_a,
     input  logic  [7:0] rom0_d,
@@ -51,11 +35,9 @@ module chp1_board
     output logic [12:0] rom1b_a,
     input  logic  [7:0] rom1b_d,
 
-    // shared board RAM pool (ram_pool_pkg, Universal's RAMPOOL convention): block n = pr_i[n] / pr_o[n], see below
     output ram_pool_pkg::pram_i_t [6:0] pr_i,
     input  ram_pool_pkg::pram_o_t [6:0] pr_o,
 
-    // battery RAM save / load (MRA index 4): port B of pool block 1
     input  logic  [9:0] nvs_addr,
     input  logic  [7:0] nvs_din,
     input  logic        nvs_we,
@@ -90,10 +72,6 @@ logic [7:0]  roma_q, romb_q;
 assign rom0b_slot = roma_slot; assign rom0b_a = roma_off; assign roma_q = rom0b_d;
 assign romb_q = rom0_d;
 
-// Board RAM pool blocks (port A = CPU, port B = video engine / save path); sizes set by the dispatcher per block:
-//   0 work RAM 2K (D000-D7FF)          1 battery RAM 1K (C000-C3FF; B = MRA index 4)
-//   2 top bg map 2K (D800-DFFF)        3 bottom bg map + row scroll 4K (F000-FFFF)
-//   4 big sprite 1 map 2K (E000-E7FF)  5 big sprite 2 map 2K (E800-EFFF)   6 RP2A03 RAM 2K (0000-07FF)
 logic [10:0] wram_a, vtop_a, spr1_a, spr2_a, snd_a, vtop_ab, spr1_ab, spr2_ab;
 logic  [9:0] nv_a;
 logic [11:0] vbot_a, vbot_ab;
@@ -115,8 +93,6 @@ assign spr1_q = pr_o[4].a_q;  assign spr1_qb  = pr_o[4].b_q;
 assign spr2_q = pr_o[5].a_q;  assign spr2_qb  = pr_o[5].b_q;
 assign snd_q  = pr_o[6].a_q;
 
-/////////////////////////////  Video  /////////////////////////////
-
 logic [2:0]  ph;
 logic        vreg_we, vb;
 logic        v_roma_req;
@@ -135,11 +111,8 @@ chp1_video video
     .ce_pix(ce_pix), .top_r(top_r), .top_g(top_g), .top_b(top_b), .bot_r(bot_r), .bot_g(bot_g), .bot_b(bot_b),
     .hs(video_hs), .vs(video_vs), .hblank(video_hblank), .vblank(video_vblank), .vb(vb)
 );
-// ROM port B phase 7 is not read by the video (its result would land at phase 0): VLM5030 speech ROM (6P, 16K)
 assign rom0_slot = (ph == 3'd7) ? SLOT_VLM : romb_slot;
 assign rom0_a    = (ph == 3'd7) ? {4'd0, vlm5030_0_o.a[13:0]} : romb_off;
-
-/////////////////////////////  Clock enables  /////////////////////////////
 
 logic [6:0]  zacc = 7'd0;
 logic        zhalf = 1'b0, z_cen_p = 1'b0, z_cen_n = 1'b0;
@@ -150,18 +123,18 @@ logic        v_ce = 1'b0;
 always_ff @(posedge clk) begin
     z_cen_p <= 1'b0; z_cen_n <= 1'b0; s_ce <= 1'b0; v_ce <= 1'b0;
     if (!pause) begin
-        if (zacc >= 7'd101) begin                       // + 25 reaches 126
+        if (zacc >= 7'd101) begin
             zacc <= zacc - 7'd101;
             zhalf <= ~zhalf;
             z_cen_p <= ~zhalf; z_cen_n <= zhalf;
         end else
             zacc <= zacc + 7'd25;
-        if (sacc >= 12'd2691) begin                     // + 125 reaches 2816
+        if (sacc >= 12'd2691) begin
             sacc <= sacc - 12'd2691;
             s_ce <= 1'b1;
         end else
             sacc <= sacc + 12'd125;
-        if (vacc >= 11'd1283) begin                     // + 125 reaches 1408: VLM5030 OSC 3.579545 MHz
+        if (vacc >= 11'd1283) begin
             vacc <= vacc - 11'd1283;
             v_ce <= 1'b1;
         end else
@@ -169,20 +142,18 @@ always_ff @(posedge clk) begin
     end
 end
 
-/////////////////////////////  Z80 bus  /////////////////////////////
-
 wire [15:0] za   = z80_o.a;
 wire        mreq = ~z80_o.mreq_n & z80_o.rfsh_n;
-wire        iorq = ~z80_o.iorq_n & z80_o.m1_n;             // not INTA (no INT on this board)
+wire        iorq = ~z80_o.iorq_n & z80_o.m1_n;
 wire        zrd  = ~z80_o.rd_n, zwr = ~z80_o.wr_n;
 
-wire cs_rom  = za[15:14] != 2'b11;                         // 0000-BFFF
-wire cs_nv   = za[15:10] == 6'b110000;                     // C000-C3FF battery RAM
-wire cs_wram = za[15:11] == 5'b11010;                      // D000-D7FF
-wire cs_vtop = za[15:11] == 5'b11011;                      // D800-DFFF (DFF0-DFFF also the video registers)
-wire cs_spr1 = za[15:11] == 5'b11100;                      // E000-E7FF
-wire cs_spr2 = za[15:11] == 5'b11101;                      // E800-EFFF
-wire cs_vbot = za[15:12] == 4'hF;                          // F000-FFFF (row scroll in the first 64 bytes)
+wire cs_rom  = za[15:14] != 2'b11;
+wire cs_nv   = za[15:10] == 6'b110000;
+wire cs_wram = za[15:11] == 5'b11010;
+wire cs_vtop = za[15:11] == 5'b11011;
+wire cs_spr1 = za[15:11] == 5'b11100;
+wire cs_spr2 = za[15:11] == 5'b11101;
+wire cs_vbot = za[15:12] == 4'hF;
 wire mw      = mreq & zwr;
 
 assign wram_a = za[10:0]; assign wram_d = z80_o.dout; assign wram_we = mw & cs_wram;
@@ -193,11 +164,9 @@ assign spr2_a = za[10:0]; assign spr2_d = z80_o.dout; assign spr2_we = mw & cs_s
 assign vbot_a = za[11:0]; assign vbot_d = z80_o.dout; assign vbot_we = mw & cs_vbot;
 assign vreg_we = mw & (za[15:4] == 12'hDFF);
 
-// I/O (global mask 0xFF): reads 00 IN0, 01 IN1, 02 DSW2, 03 DSW1 (bit 4 = VLM5030 BSY through the inverting
-// buffer: 1 = idle); writes 02 / 03 sound latches, 04 VLM5030 data, 08-0F main latch LS259 2B (data bit 0)
 wire io_wr = iorq & zwr;
 logic [7:0] snd_lat1 = 8'd0, snd_lat2 = 8'd0, vlm_lat = 8'd0;
-logic [7:0] mlatch = 8'd0;                                 // Q0 NMI mask, Q3 2A03 reset, Q4-Q6 VLM RST / START / VCU
+logic [7:0] mlatch = 8'd0;
 always_ff @(posedge clk) begin
     if (reset) mlatch <= 8'd0;
     else if (io_wr && za[7:3] == 5'b00001) mlatch[za[2:0]] <= z80_o.dout[0];
@@ -205,15 +174,12 @@ always_ff @(posedge clk) begin
     if (io_wr && za[7:0] == 8'h03) snd_lat2 <= z80_o.dout;
     if (io_wr && za[7:0] == 8'h04) vlm_lat  <= z80_o.dout;
 end
-// VLM5030 pool port: RST / START / VCU = main latch Q4-Q6. One D bus: the 6L data latch, or the speech ROM while
-// /ME is low (ROM byte from port B phase 7, valid at phase 0)
 logic [7:0] vlm_rom_q = 8'hFF;
 always_ff @(posedge clk) if (ph == 3'd0) vlm_rom_q <= rom0_d;
 assign vlm5030_0_i = '{rst: mlatch[4], oscen: v_ce, start: mlatch[5], vcu: mlatch[6],
                        d: vlm5030_0_o.me_l ? vlm_lat : vlm_rom_q};
 wire   vlm_bsy     = vlm5030_0_o.bsy;
 
-// NMI: set at vblank start while Q0 = 1, cleared by Q0 = 0
 logic vb_d = 1'b0, nmi = 1'b0;
 always_ff @(posedge clk) begin
     vb_d <= vb;
@@ -221,8 +187,7 @@ always_ff @(posedge clk) begin
     else if (vb && !vb_d) nmi <= 1'b1;
 end
 
-// ROM port A: Z80 on phases 0 / 2 / 4 / 7, RP2A03 on 1 / 3, big sprite 2 (video) on 5 / 6
-wire [15:0] sa;                                            // RP2A03 external address
+wire [15:0] sa;
 wire sel_t = ph == 3'd1 || ph == 3'd3;
 assign roma_slot = v_roma_req ? v_roma_slot : sel_t ? SLOT_SND : SLOT_MAIN;
 assign roma_off  = v_roma_req ? v_roma_off  : {2'b00, sel_t ? sa : za};
@@ -236,7 +201,6 @@ always_ff @(posedge clk) begin
     if (s_slot) srom_q <= roma_q;
 end
 
-// Super Punch-Out!! (variant 1) CHS1-01-EXP security board: RP5H01 at 05 / 06, RP5C01 at x7
 wire       is_spnch = variant == 8'd1;
 wire [7:0] exp_q;
 chs1_exp exp_board (.clk(clk), .reset(reset), .io_wr(io_wr && is_spnch), .a(za[7:0]), .d(z80_o.dout), .q(exp_q));
@@ -263,9 +227,6 @@ end
 
 assign z80_i = '{reset_n: 1'b1, cen_p: z_cen_p, cen_n: z_cen_n, wait_n: 1'b1, int_n: 1'b1, nmi_n: ~nmi, busrq_n: 1'b1, di: zdi};
 
-/////////////////////////////  RP2A03 (sound board part of the CPU board)  /////////////////////////////
-
-// 0000-07FF RAM (4L), 4016 / 4017 sound latches, E000-FFFF ROM (4K); NMI = vblank (top screen vblank)
 logic        s_rw;
 logic  [7:0] s_do, s_di;
 logic [15:0] s_aux_a, s_aux_b;
@@ -284,8 +245,6 @@ always_comb
     s_di = (sa[15:13] == 3'b111) ? srom_q : (sa == 16'h4016) ? snd_lat1 : (sa == 16'h4017) ? snd_lat2 :
            (sa[15:11] == 5'd0) ? snd_q : 8'h00;
 
-// mix (Nintendo core DK3 lineage): AUX A + AUX B, DC blocker (~9 Hz at the CPU clock rate), plus the VLM5030 at half
-// scale (MAME routes each at 0.50; HW is one mono amp, level by ear #unverified)
 logic [16:0] mix_sum;
 logic signed [31:0] mix_lp = 32'sd0;
 logic signed [18:0] mix_hp;

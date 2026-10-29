@@ -1,62 +1,37 @@
-//============================================================================
-//
-//  Ricoh RP2A03 APU (sound part of the 2A03; the 6502 core is the board's pooled T65)
+//  From the 2A03 die schematics (Breaks wiki)
 //  Copyright (C) 2026 Rodimus
-//
-//  From the die schematics (Breaks wiki APU pages + imgstore/apu), derivation in verilator/dk3/apu_derivation.md.
-//  Cycle level: ce = one CPU cycle (PHI); ACLK = every second CPU cycle; the triangle timer runs every CPU cycle.
-//    Frame counter: 15-bit LFSR (s13 ^ s14, reload 0x7FFF), PLA matches 0x1061 / 0x3603 / 0x2CD3 / 0x0A1F (mode 0
-//      only) / 0x7185 -> LFO1 (quarter) and LFO2 (half); $4017 write reloads it, mode 1 also clocks LFO1 + LFO2.
-//    Length: decoder ROM = table - 1, counts on LFO2 unless halted, the underflow stops the channel.
-//    Envelope: start flag (length write) -> 15; divider from volume on LFO1; loops with the halt bit.
-//    Squares: 11-bit timer, 3-bit duty counter (cleared by the length write), sweep adder (square 0 ones'
-//      complement), muted by sweep overflow or period < 4 (die: NOR of bits 10..2).
-//    Triangle: linear counter + reload flag, timer every CPU cycle, 5-bit up counter -> 15..0, 0..15.
-//    Noise: 11-bit period LFSR (b0 ^ b2 -> b10, reload at 0x001 from the decoder ROM), 15-bit random LFSR
-//      (b0 ^ (mode ? b6 : b1) -> b14, zero guard), muted while b0 = 1.
-//    DMC: 9-bit rate LFSR (b0 ^ b4 -> b8, reload at 0x001), 7-bit output (6-bit up / down counter + $4011 bit 0),
-//      sample buffer fetched over dmc_req / dmc_ack (the board stalls the CPU with RDY).
-//    DAC: die structure (switched conductances into the board's 100 Ohm pad loads), per-channel weights and unit
-//      resistance from hardware measurements -> aux_a / aux_b (tools/apu_dac.py, 20000 per volt).
-//  Not modelled: debug registers $4018-$401A, LOCK, OAM DMA ($4014), joypad strobe ($4016 writes).
-//
-//============================================================================
 
 module rp2a03_apu
 (
     input  logic        clk,
     input  logic        reset,
-    input  logic        ce,             // CPU cycle
+    input  logic        ce,
 
-    // CPU bus, sampled at ce (the cycle that ends now)
     input  logic [15:0] addr,
     input  logic        rw,             // 1 = read
     input  logic  [7:0] din,
-    output logic  [7:0] dout,           // $4015 status
-    output logic        sel_4015,       // CPU reads $4015 this cycle
+    output logic  [7:0] dout,
+    output logic        sel_4015,
     output logic        irq_n,
 
-    // DMC sample fetch
     output logic        dmc_req,
     output logic [15:0] dmc_addr,
-    input  logic        dmc_ack,        // one clk, with dmc_data
+    input  logic        dmc_ack,
     input  logic  [7:0] dmc_data,
 
-    output logic [15:0] aux_a,          // squares
-    output logic [15:0] aux_b           // triangle, noise, DMC
+    output logic [15:0] aux_a,
+    output logic [15:0] aux_b
 );
 
-wire reg_wr = ce && !rw && addr[15:5] == 11'h200;                 // 4000-401F
+wire reg_wr = ce && !rw && addr[15:5] == 11'h200;
 wire rd4015 = ce &&  rw && addr == 16'h4015;
 assign sel_4015 = rw && addr == 16'h4015;
 wire [4:0] ra = addr[4:0];
 
-// ------------------------------------------------------------------ ACLK
 logic aclk = 1'b0;
 always_ff @(posedge clk) if (reset) aclk <= 1'b0; else if (ce) aclk <= ~aclk;
-wire astep = ce && aclk;                // one APU (ACLK) step
+wire astep = ce && aclk;
 
-// ------------------------------------------------------------------ length counter decoder (die ROM, = table - 1)
 function automatic [7:0] len_rom(input [4:0] i);
     case (i)
         5'd0:  len_rom = 8'h09; 5'd1:  len_rom = 8'hFD; 5'd2:  len_rom = 8'h13; 5'd3:  len_rom = 8'h01;
@@ -70,7 +45,6 @@ function automatic [7:0] len_rom(input [4:0] i);
     endcase
 endfunction
 
-// noise period decoder (die ROM, NTSC), loaded into the 11-bit period LFSR
 function automatic [10:0] noise_rom(input [3:0] i);
     case (i)
         4'd0:  noise_rom = 11'h002; 4'd1:  noise_rom = 11'h00A; 4'd2:  noise_rom = 11'h0AA; 4'd3:  noise_rom = 11'h2BB;
@@ -80,7 +54,6 @@ function automatic [10:0] noise_rom(input [3:0] i);
     endcase
 endfunction
 
-// DMC rate decoder (die ROM, NTSC), loaded into the 9-bit rate LFSR
 function automatic [8:0] dmc_rom(input [3:0] i);
     case (i)
         4'd0:  dmc_rom = 9'h173; 4'd1:  dmc_rom = 9'h08A; 4'd2:  dmc_rom = 9'h143; 4'd3:  dmc_rom = 9'h0DB;
@@ -90,16 +63,15 @@ function automatic [8:0] dmc_rom(input [3:0] i);
     endcase
 endfunction
 
-logic tri_ctrl;                         // triangle control / length halt ($4008 bit 7)
+logic tri_ctrl;
 
-// ------------------------------------------------------------------ frame counter (SoftCLK)
 logic [14:0] fc_lfsr;
 logic        fc_mode, fc_mask, fc_irq, fc_z1;
 wire pla0 = fc_lfsr == 15'h1061, pla1 = fc_lfsr == 15'h3603, pla2 = fc_lfsr == 15'h2CD3;
 wire pla3 = fc_lfsr == 15'h0A1F && !fc_mode, pla4 = fc_lfsr == 15'h7185;
 wire fc_fb = (fc_lfsr[13] ^ fc_lfsr[14]) | (fc_lfsr == 15'd0);
-wire lfo1  = astep && (fc_z1 ? fc_mode : (pla0 | pla1 | pla2 | pla3 | pla4));     // quarter frame
-wire lfo2  = astep && (fc_z1 ? fc_mode : (pla1 | pla3 | pla4));                   // half frame
+wire lfo1  = astep && (fc_z1 ? fc_mode : (pla0 | pla1 | pla2 | pla3 | pla4));
+wire lfo2  = astep && (fc_z1 ? fc_mode : (pla1 | pla3 | pla4));
 
 always_ff @(posedge clk) begin
     if (reset) begin
@@ -118,7 +90,6 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ length counters: 0 sq0, 1 sq1, 2 tri, 3 noise
 logic [7:0] len_cnt[4];
 logic [3:0] len_on, len_en;
 logic [3:0] len_halt;
@@ -143,7 +114,6 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ envelopes: 0 sq0, 1 sq1, 2 noise
 logic [3:0] env_vol[3], env_div[3], env_dec[3];
 logic [2:0] env_const, env_loop, env_start;
 wire  [2:0] env_regw = {reg_wr && ra == 5'h0C, reg_wr && ra == 5'h04, reg_wr && ra == 5'h00};
@@ -172,7 +142,6 @@ always_comb for (int e = 0; e < 3; e++) env_out[e] = env_const[e] ? env_vol[e] :
 
 assign len_halt = {env_loop[2], tri_ctrl, env_loop[1], env_loop[0]};
 
-// ------------------------------------------------------------------ squares
 logic [10:0] sq_f[2], sq_t[2];
 logic  [1:0] sq_duty[2];
 logic  [2:0] sq_dc[2];
@@ -183,7 +152,6 @@ logic  [3:0] sq_out[2];
 logic [11:0] sq_tgt[2];
 logic  [1:0] sq_ovf, sq_uvf, sq_duty_on;
 always_comb for (int s = 0; s < 2; s++) begin
-    // adder: F +/- (F >> shift); square 0 subtracts the ones' complement (die carry-in)
     sq_tgt[s] = sq_neg[s] ? {1'b0, sq_f[s]} - {1'b0, sq_f[s] >> sq_sh[s]} - (s == 0 ? 12'd1 : 12'd0)
                           : {1'b0, sq_f[s]} + {1'b0, sq_f[s] >> sq_sh[s]};
     sq_ovf[s] = !sq_neg[s] && sq_tgt[s][11];
@@ -208,12 +176,10 @@ always_ff @(posedge clk) begin
         if (reg_wr && ra == {2'd0, s[0], 2'd1}) begin
             sq_swen[s] <= din[7]; sq_swp[s] <= din[6:4]; sq_neg[s] <= din[3]; sq_sh[s] <= din[2:0]; sq_swrel[s] <= 1'b1;
         end
-        // timer and duty counter
         if (astep) begin
             if (sq_t[s] == 11'd0) begin sq_t[s] <= sq_f[s]; sq_dc[s] <= sq_dc[s] - 3'd1; end
             else sq_t[s] <= sq_t[s] - 11'd1;
         end
-        // sweep (LFO2)
         if (lfo2) begin
             if (sq_swdiv[s] == 3'd0 && sq_swen[s] && sq_sh[s] != 3'd0 && len_on[s] && !sq_ovf[s] && !sq_uvf[s])
                 sq_f[s] <= sq_tgt[s][10:0];
@@ -225,7 +191,6 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ triangle
 logic        tri_rel;
 logic  [6:0] tri_lin_r, tri_lin;
 logic [10:0] tri_f, tri_t;
@@ -244,7 +209,7 @@ always_ff @(posedge clk) begin
             else if (tri_lin != 7'd0) tri_lin <= tri_lin - 7'd1;
             if (!tri_ctrl) tri_rel <= 1'b0;
         end
-        if (ce) begin                                                   // timer every CPU cycle (PHI1)
+        if (ce) begin
             if (tri_t == 11'd0) begin
                 tri_t <= tri_f;
                 if (tri_lin != 7'd0 && len_on[2]) tri_c <= tri_c + 5'd1;
@@ -253,7 +218,6 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ noise
 logic [10:0] nz_p;
 logic [14:0] nz_r;
 logic  [3:0] nz_idx;
@@ -274,13 +238,12 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ DMC
 logic  [8:0] dm_rate;
 logic  [3:0] dm_idx;
 logic        dm_irqen, dm_loop, dm_irq;
 logic  [6:0] dm_out;
 logic  [7:0] dm_a_r, dm_l_r;
-logic [14:0] dm_addr;                   // A15 forced high
+logic [14:0] dm_addr;
 logic [11:0] dm_left;
 logic  [7:0] dm_buf, dm_sr;
 logic        dm_full, dm_silent;
@@ -306,7 +269,6 @@ always_ff @(posedge clk) begin
             if (!din[4]) dm_left <= 12'd0;
             else if (dm_left == 12'd0) begin dm_addr <= {1'b1, dm_a_r, 6'd0}; dm_left <= {dm_l_r, 4'd0} + 12'd1; end
         end
-        // sample fetch
         if (dmc_ack) begin
             dm_buf <= dmc_data; dm_full <= 1'b1;
             dm_addr <= dm_addr + 15'd1;
@@ -315,7 +277,6 @@ always_ff @(posedge clk) begin
                 else begin dm_left <= 12'd0; if (dm_irqen) dm_irq <= 1'b1; end
             end else dm_left <= dm_left - 12'd1;
         end
-        // output unit on the rate LFSR reload
         if (astep) begin
             if (dm_rate == 9'h001) begin
                 dm_rate <= dmc_rom(dm_idx);
@@ -324,8 +285,8 @@ always_ff @(posedge clk) begin
                     else          begin if (dm_out[6:1] != 6'h00) dm_out[6:1] <= dm_out[6:1] - 6'd1; end
                 end
                 dm_sr <= {1'b0, dm_sr[7:1]};
-                dm_bits <= dm_bits - 3'd1;                              // 0 = 8 bits left
-                if (dm_bits == 3'd1) begin                              // last bit out: next byte
+                dm_bits <= dm_bits - 3'd1;
+                if (dm_bits == 3'd1) begin
                     if (dm_full) begin dm_sr <= dm_buf; dm_full <= 1'b0; dm_silent <= 1'b0; end
                     else dm_silent <= 1'b1;
                 end
@@ -335,12 +296,9 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ status, IRQ
 assign dout  = {dm_irq, fc_irq, 1'b0, dm_left != 12'd0, len_on};
 assign irq_n = ~(fc_irq | dm_irq);
 
-// ------------------------------------------------------------------ DAC
-// AUX A: g = sq0 + sq1 (0..30) square steps
 function automatic [15:0] dac_a(input [4:0] g);
     case (g)
         5'd0: dac_a = 16'd0;
@@ -377,7 +335,6 @@ function automatic [15:0] dac_a(input [4:0] g);
         default: dac_a = 16'd0;
     endcase
 endfunction
-// AUX B: q = quarter square steps (0..469)
 function automatic [15:0] dac_b(input [8:0] q);
     case (q)
         9'd0: dac_b = 16'd0;
